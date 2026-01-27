@@ -1,0 +1,15 @@
+# Prometheus 配置文件
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'httprun'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['httprun:8080']
+    scrape_interval: 5s
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
