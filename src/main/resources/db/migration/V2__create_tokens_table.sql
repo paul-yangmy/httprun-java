@@ -1,0 +1,15 @@
+-- V2: 创建 tokens 表
+CREATE TABLE IF NOT EXISTS tokens (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    subject VARCHAR(1000) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    issued_at BIGINT NOT NULL,
+    expires_at BIGINT NOT NULL,
+    jwt_token TEXT NOT NULL,
+    revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_token_name (name),
+    UNIQUE INDEX idx_token_jwt (jwt_token(255))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
