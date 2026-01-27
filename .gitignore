@@ -1,0 +1,79 @@
+####################################
+# IntelliJ IDEA
+####################################
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+####################################
+# Visual Studio Code
+####################################
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+*.code-workspace
+.history/
+
+####################################
+# Node / Frontend
+####################################
+node_modules/
+dist/
+build/
+
+# Umi / Ant Design Pro
+.umi/
+.umi-production/
+
+# Frontend cache
+.cache/
+.eslintcache
+.tmp/
+
+####################################
+# Package manager
+####################################
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp/
+.pnp.js
+
+####################################
+# Logs / Temp
+####################################
+logs/
+*.log
+*.tmp
+*.bak
+*.pid
+
+####################################
+# Maven / Backend
+####################################
+target/
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# Maven release
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+####################################
+# Backend runtime config
+####################################
+backend/src/main/resources/config/*
+backend/target/*
+
+####################################
+# OS
+####################################
+.DS_Store
+Thumbs.db
