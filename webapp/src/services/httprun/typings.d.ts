@@ -64,8 +64,18 @@ declare namespace HTTPRUN {
     token_id: string;
     path: string;
     ip: string;
+    method: string;
     request: string;
     response: string;
+    status_code: number;
+    duration: number;
+    // 审计增强字段
+    user_agent: string;
+    referer: string;
+    source: string;      // WEB / API / CLI
+    forwarded_for: string;
+    request_id: string;
+    command_name: string;
     created_at: string;
     updated_at: string;
   };
