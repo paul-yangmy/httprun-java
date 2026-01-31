@@ -1,8 +1,12 @@
 package com.httprun.aspect;
 
 import com.httprun.dto.AuditContext;
+import com.httprun.dto.request.RunCommandRequest;
+import com.httprun.entity.Command;
+import com.httprun.repository.CommandRepository;
 import com.httprun.security.JwtUserPrincipal;
 import com.httprun.service.AccessLogService;
+import com.httprun.util.SensitiveDataMasker;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +39,7 @@ public class AccessLogAspect {
 
     private final AccessLogService accessLogService;
     private final ObjectMapper objectMapper;
+    private final CommandRepository commandRepository;
 
     @Pointcut("within(com.httprun.controller..*)")
     public void controllerMethods() {
@@ -71,13 +76,24 @@ public class AccessLogAspect {
         }
 
         String requestBody = null;
+        Command command = null;
         try {
             Object[] args = joinPoint.getArgs();
             if (args != null && args.length > 0) {
                 // 过滤掉 HttpServletRequest/Response 等不可序列化对象
                 for (Object arg : args) {
                     if (arg != null && isSerializable(arg)) {
-                        requestBody = objectMapper.writeValueAsString(arg);
+                        // 如果是 RunCommandRequest，尝试加载命令定义进行脱敏
+                        if (arg instanceof RunCommandRequest runCommandRequest) {
+                            command = loadCommand(runCommandRequest.getName());
+                            if (command != null) {
+                                requestBody = SensitiveDataMasker.maskRequest(command, runCommandRequest);
+                            } else {
+                                requestBody = objectMapper.writeValueAsString(arg);
+                            }
+                        } else {
+                            requestBody = objectMapper.writeValueAsString(arg);
+                        }
                         break;
                     }
                 }
@@ -225,6 +241,18 @@ public class AccessLogAspect {
             }
         }
         return path;
+    }
+
+    /**
+     * 加载命令定义（用于脱敏）
+     */
+    private Command loadCommand(String commandName) {
+        try {
+            return commandRepository.findByName(commandName).orElse(null);
+        } catch (Exception e) {
+            log.debug("Failed to load command for masking: {}", commandName, e);
+            return null;
+        }
     }
 
     /**
