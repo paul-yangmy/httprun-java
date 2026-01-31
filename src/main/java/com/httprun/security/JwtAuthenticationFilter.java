@@ -25,6 +25,7 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String TOKEN_HEADER = "x-token";
+    private static final String TOKEN_PARAM = "token";
 
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenRepository tokenRepository;
@@ -34,7 +35,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
+        // 优先从 header 获取 token，其次从 query parameter 获取
         String token = request.getHeader(TOKEN_HEADER);
+        if (token == null || token.isEmpty()) {
+            token = request.getParameter(TOKEN_PARAM);
+        }
 
         if (token != null && !token.isEmpty()) {
             try {
