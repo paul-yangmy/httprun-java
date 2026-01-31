@@ -92,8 +92,9 @@ logging:
     root: INFO
     com.httprun: DEBUG
     org.hibernate.SQL: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    path: logs
+    name: logs/httprun.log
 
 # Actuator 配置
 management:
