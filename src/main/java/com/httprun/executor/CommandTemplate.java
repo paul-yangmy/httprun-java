@@ -3,6 +3,7 @@ package com.httprun.executor;
 import com.httprun.dto.request.RunCommandRequest;
 import com.httprun.entity.Command;
 import com.httprun.entity.ParamDefine;
+import com.httprun.util.SensitiveDataMasker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -43,6 +44,19 @@ public class CommandTemplate {
 
         // 渲染模板
         return renderTemplate(template, params);
+    }
+
+    /**
+     * 渲染命令模板并返回脱敏后的日志字符串
+     * 用于日志记录，敏感参数会被替换为 ***
+     *
+     * @return 数组 [0]=实际命令, [1]=脱敏后的日志
+     */
+    public String[] renderWithMasking(Command command, RunCommandRequest request) {
+        String actualCommand = render(command, request);
+        Map<String, Object> params = buildParamMap(command, request);
+        String maskedCommand = SensitiveDataMasker.maskCommand(command, actualCommand, params);
+        return new String[] { actualCommand, maskedCommand };
     }
 
     private Map<String, Object> buildParamMap(Command command, RunCommandRequest request) {
