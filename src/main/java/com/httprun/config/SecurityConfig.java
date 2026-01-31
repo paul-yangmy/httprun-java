@@ -39,8 +39,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 公开端点
                         .requestMatchers("/api/health", "/swagger/**", "/v3/api-docs/**").permitAll()
-                        // 静态资源
-                        .requestMatchers("/", "/static/**", "/index.html").permitAll()
+                        // 静态资源 - 前端所有资源
+                        .requestMatchers("/", "/index.html", "/favicon.ico").permitAll()
+                        .requestMatchers("/*.js", "/*.css", "/*.json", "/*.svg", "/*.png", "/*.ico").permitAll()
+                        .requestMatchers("/static/**", "/scripts/**", "/icons/**", "/assets/**").permitAll()
+                        .requestMatchers("/admin", "/admin/", "/admin/**").permitAll()
+                        .requestMatchers("/token", "/token/", "/token/**").permitAll()
                         // 管理员接口
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // 用户接口
