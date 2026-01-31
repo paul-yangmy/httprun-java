@@ -1,5 +1,6 @@
 package com.httprun.service;
 
+import com.httprun.dto.AuditContext;
 import com.httprun.entity.AccessLog;
 import org.springframework.data.domain.Page;
 
@@ -11,7 +12,14 @@ import java.time.LocalDateTime;
 public interface AccessLogService {
 
     /**
-     * 记录访问日志
+     * 记录访问日志（增强版）
+     *
+     * @param context 审计上下文
+     */
+    void logAccess(AuditContext context);
+
+    /**
+     * 记录访问日志（兼容旧版）
      *
      * @param tokenId    Token ID
      * @param path       请求路径
@@ -44,6 +52,16 @@ public interface AccessLogService {
      * 根据时间范围查询日志
      */
     Page<AccessLog> listLogsByTimeRange(LocalDateTime start, LocalDateTime end, int page, int pageSize);
+
+    /**
+     * 根据 IP 查询日志
+     */
+    Page<AccessLog> listLogsByIp(String ip, int page, int pageSize);
+
+    /**
+     * 根据来源类型查询日志
+     */
+    Page<AccessLog> listLogsBySource(String source, int page, int pageSize);
 
     /**
      * 清理历史日志
