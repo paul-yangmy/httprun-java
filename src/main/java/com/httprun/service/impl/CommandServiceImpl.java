@@ -57,6 +57,40 @@ public class CommandServiceImpl implements CommandService {
     }
 
     @Override
+    @Transactional
+    @CacheEvict(value = "commands", allEntries = true)
+    public CommandResponse updateCommand(String name, CreateCommandRequest request) {
+        Command command = commandRepository.findByName(name)
+                .orElseThrow(() -> new BusinessException("Command not found: " + name));
+
+        // 更新命令信息
+        if (request.getPath() != null) {
+            command.setPath(request.getPath());
+        }
+        if (request.getDescription() != null) {
+            command.setDescription(request.getDescription());
+        }
+        if (request.getCommandConfig() != null) {
+            command.setCommandConfig(request.getCommandConfig());
+        }
+        if (request.getExecutionMode() != null) {
+            command.setExecutionMode(request.getExecutionMode());
+        }
+        if (request.getGroupName() != null) {
+            command.setGroupName(request.getGroupName());
+        }
+        if (request.getTags() != null) {
+            command.setTags(request.getTags());
+        }
+        if (request.getTimeoutSeconds() != null) {
+            command.setTimeoutSeconds(request.getTimeoutSeconds());
+        }
+
+        command = commandRepository.save(command);
+        return toResponse(command);
+    }
+
+    @Override
     @Cacheable(value = "commands", key = "'all'")
     public List<CommandResponse> listAllCommands() {
         return commandRepository.findAll().stream()

@@ -43,6 +43,14 @@ public class AdminController {
         return ResponseEntity.ok(commandService.createCommand(request));
     }
 
+    @PutMapping("/command/{name}")
+    @Operation(summary = "更新命令")
+    public ResponseEntity<CommandResponse> updateCommand(
+            @PathVariable String name,
+            @Valid @RequestBody CreateCommandRequest request) {
+        return ResponseEntity.ok(commandService.updateCommand(name, request));
+    }
+
     @GetMapping("/commands")
     @Operation(summary = "获取所有命令")
     public ResponseEntity<List<CommandResponse>> getCommandList() {

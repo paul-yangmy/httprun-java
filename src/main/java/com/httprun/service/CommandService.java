@@ -18,6 +18,11 @@ public interface CommandService {
     CommandResponse createCommand(CreateCommandRequest request);
 
     /**
+     * 更新命令
+     */
+    CommandResponse updateCommand(String name, CreateCommandRequest request);
+
+    /**
      * 获取所有命令
      */
     List<CommandResponse> listAllCommands();
