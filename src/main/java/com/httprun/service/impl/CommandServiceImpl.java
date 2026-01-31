@@ -131,14 +131,16 @@ public class CommandServiceImpl implements CommandService {
         // 4. 验证参数
         commandTemplate.validateParams(command, request);
 
-        // 5. 渲染命令模板
-        String renderedCommand = commandTemplate.render(command, request);
-        log.info("Rendered command: {}", renderedCommand);
+        // 5. 渲染命令模板（带脱敏）
+        String[] rendered = commandTemplate.renderWithMasking(command, request);
+        String actualCommand = rendered[0]; // 实际执行的命令
+        String maskedCommand = rendered[1]; // 脱敏后的日志
+        log.info("Executing command: {} (masked)", maskedCommand);
 
         // 6. 选择执行器并执行
         CommandExecutor executor = selectExecutor(command.getExecutionMode());
         int timeout = request.getTimeout() != null ? request.getTimeout() : command.getTimeoutSeconds();
-        return executor.execute(renderedCommand, request, timeout);
+        return executor.execute(actualCommand, request, timeout);
     }
 
     private CommandExecutor selectExecutor(ExecutionMode mode) {
