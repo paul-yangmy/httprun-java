@@ -31,4 +31,10 @@ public class ParamDefine {
      * 是否必需
      */
     private boolean required;
+
+    /**
+     * 是否敏感参数（如密码、密钥等）
+     * 敏感参数在日志中会被脱敏显示为 ***
+     */
+    private boolean sensitive;
 }
