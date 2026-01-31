@@ -1,0 +1,9 @@
+{
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "chat.tools.terminal.autoApprove": {
+    "Receive-Job": true,
+    "mvn spring-boot:run": true,
+    "Set-Location": true,
+    "mvn compile": true
+  }
+}

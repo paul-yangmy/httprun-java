@@ -77,3 +77,4 @@ backend/target/*
 ####################################
 .DS_Store
 Thumbs.db
+httprun.db
