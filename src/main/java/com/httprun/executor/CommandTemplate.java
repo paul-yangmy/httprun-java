@@ -19,8 +19,8 @@ import java.util.regex.Pattern;
 @Component
 public class CommandTemplate {
 
-    // 匹配 {{.variableName}} 格式的模板变量
-    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{\\s*\\.([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
+    // 匹配 {{.variableName}} 或 {{variableName}} 格式的模板变量（点号可选）
+    private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
 
     /**
      * 渲染命令模板
@@ -31,6 +31,11 @@ public class CommandTemplate {
      * 结果: "ping google.com -c 4"
      */
     public String render(Command command, RunCommandRequest request) {
+        // 检查 commandConfig 是否存在
+        if (command.getCommandConfig() == null || command.getCommandConfig().getCommand() == null) {
+            throw new IllegalArgumentException(
+                    "Command configuration is not set. Please configure the command template first.");
+        }
         String template = command.getCommandConfig().getCommand();
 
         // 构建参数映射
@@ -44,7 +49,7 @@ public class CommandTemplate {
         Map<String, Object> params = new HashMap<>();
 
         // 1. 先填充默认值
-        if (command.getCommandConfig().getParams() != null) {
+        if (command.getCommandConfig() != null && command.getCommandConfig().getParams() != null) {
             for (ParamDefine paramDef : command.getCommandConfig().getParams()) {
                 if (paramDef.getDefaultValue() != null) {
                     params.put(paramDef.getName(), paramDef.getDefaultValue());
@@ -83,7 +88,8 @@ public class CommandTemplate {
      * 验证参数
      */
     public void validateParams(Command command, RunCommandRequest request) {
-        if (command.getCommandConfig().getParams() == null) {
+        // 如果没有配置 commandConfig，跳过参数验证
+        if (command.getCommandConfig() == null || command.getCommandConfig().getParams() == null) {
             return;
         }
 

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
@@ -166,7 +167,11 @@ public class LocalCommandExecutor implements CommandExecutor {
     }
 
     private String readStream(java.io.InputStream inputStream) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+        // Windows 中文系统使用 GBK 编码，其他系统使用 UTF-8
+        Charset charset = System.getProperty("os.name").toLowerCase().contains("windows")
+                ? Charset.forName("GBK")
+                : Charset.forName("UTF-8");
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, charset))) {
             return reader.lines().collect(Collectors.joining("\n"));
         } catch (Exception e) {
             return "";
