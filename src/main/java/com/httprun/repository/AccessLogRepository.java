@@ -50,4 +50,24 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, Long> {
      */
     @Query("SELECT COUNT(a) FROM AccessLog a WHERE a.createdAt BETWEEN :start AND :end")
     long countByCreatedAtBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /**
+     * 根据 IP 地址查找日志
+     */
+    Page<AccessLog> findByIp(String ip, Pageable pageable);
+
+    /**
+     * 根据来源查找日志
+     */
+    Page<AccessLog> findBySource(String source, Pageable pageable);
+
+    /**
+     * 根据请求 ID 查找日志
+     */
+    AccessLog findByRequestId(String requestId);
+
+    /**
+     * 根据命令名称查找日志
+     */
+    Page<AccessLog> findByCommandName(String commandName, Pageable pageable);
 }
