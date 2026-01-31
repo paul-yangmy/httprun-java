@@ -20,6 +20,11 @@ jwt:
   secret: ${JWT_SECRET}
   expiration: 86400000
 
+# HttpRun 配置
+httprun:
+  webapp-build-dir: ${WEBAPP_BUILD_DIR:./webapp/dist}
+  init-admin-token: false
+
 logging:
   level:
     root: WARN
