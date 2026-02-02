@@ -2,6 +2,7 @@ package com.httprun.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -36,6 +37,26 @@ public class CreateTokenRequest {
      */
     @Schema(description = "有效期（小时），0 表示永不过期", example = "24", defaultValue = "24")
     private Integer expiresIn = 24;
+
+    /**
+     * 允许执行的开始时间（每日，格式：HH:mm）
+     */
+    @Schema(description = "允许执行的开始时间（每日，格式：HH:mm，如 09:00）", example = "09:00")
+    @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "开始时间格式必须为 HH:mm")
+    private String allowedStartTime;
+
+    /**
+     * 允许执行的结束时间（每日，格式：HH:mm）
+     */
+    @Schema(description = "允许执行的结束时间（每日，格式：HH:mm，如 18:00）", example = "18:00")
+    @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "结束时间格式必须为 HH:mm")
+    private String allowedEndTime;
+
+    /**
+     * 允许执行的星期几（1=周一, 2=周二, ..., 7=周日）
+     */
+    @Schema(description = "允许执行的星期几（1=周一, ..., 7=周日）", example = "[1, 2, 3, 4, 5]")
+    private List<Integer> allowedWeekdays;
 
     /**
      * 备注
