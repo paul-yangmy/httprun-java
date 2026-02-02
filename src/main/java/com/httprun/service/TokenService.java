@@ -1,5 +1,6 @@
 package com.httprun.service;
 
+import com.httprun.dto.request.CreateTokenRequest;
 import com.httprun.entity.Token;
 import org.springframework.data.domain.Page;
 
@@ -11,7 +12,7 @@ import java.util.List;
 public interface TokenService {
 
     /**
-     * 创建 Token
+     * 创建 Token（简化版本，兼容旧接口）
      *
      * @param name      Token 名称
      * @param subject   授权的命令列表（逗号分隔）
@@ -20,6 +21,14 @@ public interface TokenService {
      * @return 创建的 Token
      */
     Token createToken(String name, String subject, boolean isAdmin, int expiresIn);
+
+    /**
+     * 创建 Token（完整版本，支持时间范围限制）
+     *
+     * @param request 创建 Token 请求
+     * @return 创建的 Token
+     */
+    Token createToken(CreateTokenRequest request);
 
     /**
      * 获取 Token 详情
@@ -47,9 +56,17 @@ public interface TokenService {
     void deleteTokens(List<Long> ids);
 
     /**
-     * 验证 Token
+     * 验证 Token（仅验证签名和过期时间）
      */
     boolean validateToken(String jwtToken);
+
+    /**
+     * 验证 Token 时间范围权限
+     * 
+     * @param jwtToken JWT Token 字符串
+     * @return 是否在允许的时间范围内
+     */
+    boolean validateTokenTimeRange(String jwtToken);
 
     /**
      * 根据 JWT Token 获取 Token 实体
