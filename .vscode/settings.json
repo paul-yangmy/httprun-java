@@ -1,5 +1,5 @@
 {
-  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.configuration.updateBuildConfiguration": "automatic",
   "chat.tools.terminal.autoApprove": {
     "Receive-Job": true,
     "mvn spring-boot:run": true,
@@ -8,6 +8,7 @@
     "git add": true,
     "git commit": true,
     "mvn clean": true,
-    "npm run build": true
+    "npm run build": true,
+    "java": true
   }
 }

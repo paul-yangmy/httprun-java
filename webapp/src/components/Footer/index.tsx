@@ -23,7 +23,7 @@ const Footer: React.FC = () => {
         {
           key: 'github',
           title: <GithubOutlined />,
-          href: 'https://github.com',
+          href: 'https://github.com/paul-yangmy/httprun-java',
           blankTarget: true,
         },
       ]}

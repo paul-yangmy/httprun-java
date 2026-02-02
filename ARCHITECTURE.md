@@ -1,175 +1,232 @@
+
 # HttpRun Java 企业级架构说明文档
 
-## 项目概述
+## 项目简介
 
-HttpRun 是一个基于 HTTP API 的 Shell 命令网关系统，允许用户通过 RESTful API 或 Web UI 安全地执行预定义的 Shell 命令，无需直接登录服务器。
+HttpRun 是一款面向企业的安全 Shell 命令网关，支持通过 RESTful API 或 Web UI 远程安全执行预定义命令，具备细粒度权限、审批、审计、监控等特性。Java 版本基于 Spring Boot 3.2.x，适合中大型企业安全运维自动化场景。
 
-本文档描述基于 **Java + Spring Boot** 技术栈的企业级实现方案，相较于 Go 版本，提供更完善的企业级特性支持。
-
----
-
-## 技术栈对比
-
-| 功能模块 | Go 版本 | Java 版本 |
-|---------|---------|-----------|
-| 语言版本 | Go 1.21.5 | Java 17 (LTS) / Java 21 |
-| Web 框架 | Gin 1.9.1 | Spring Boot 3.2.x |
-| ORM 框架 | GORM 1.25.9 | Spring Data JPA + Hibernate |
-| 数据库 | SQLite | MySQL 8.0 / PostgreSQL 15 |
-| 认证授权 | jwt-go | Spring Security 6 + jjwt |
-| API 文档 | Swaggo | SpringDoc OpenAPI 3 |
-| 配置管理 | godotenv | Spring Boot Config + Nacos |
-| 日志框架 | 标准 log | Logback + SLF4J |
-| 构建工具 | go build | Maven / Gradle |
-| 容器化 | Dockerfile | Dockerfile + Jib |
+项目地址：[https://github.com/paul-yangmy/httprun-java](https://github.com/paul-yangmy/httprun-java)
 
 ---
 
-## 技术栈详情
+## 技术栈
 
-### 后端技术栈
+**后端：**
+- Java 17 / 21 LTS
+- Spring Boot 3.2.x / Spring Security 6.x / Spring Data JPA / Hibernate 6.x
+- MySQL 8.0+ / Redis 7.x
+- JWT (jjwt) / OpenAPI (SpringDoc)
+- Flyway / Caffeine / Lombok / MapStruct
+- Micrometer + Prometheus + Grafana（监控）
+- Logback（结构化日志）
 
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| Java | 17 / 21 LTS | 主要编程语言 |
-| Spring Boot | 3.2.x | 应用框架 |
-| Spring Security | 6.x | 安全认证授权 |
-| Spring Data JPA | 3.2.x | 数据持久化 |
-| Hibernate | 6.x | ORM 实现 |
-| MySQL | 8.0+ | 主数据库 |
-| Redis | 7.x | 缓存/会话/Token黑名单 |
-| jjwt | 0.12.x | JWT Token 处理 |
-| SpringDoc | 2.3.x | OpenAPI 文档生成 |
-| Lombok | 1.18.x | 代码简化 |
-| MapStruct | 1.5.x | 对象映射 |
-| HikariCP | 5.x | 数据库连接池 |
-| Flyway | 9.x | 数据库版本控制 |
-| Caffeine | 3.x | 本地缓存 |
+**前端：**
+- React 18 / TypeScript 4.9 / Ant Design 5 / UmiJS / Monaco Editor
 
-### 前端技术栈（保持不变）
-
-| 技术 | 版本 | 用途 |
-|------|------|------|
-| React | 18.2.0 | UI 框架 |
-| TypeScript | 4.9.5 | 类型安全 |
-| React Router | 6.22.3 | 路由管理 |
-| Ant Design | 5.16.1 | UI 组件库 |
-| Monaco Editor | 0.47.0 | 代码编辑器 |
+**运维与部署：**
+- Docker 多阶段构建、docker-compose 一键部署
+- 健康检查、Prometheus 指标、结构化审计日志
 
 ---
 
-## 项目目录结构
+## 目录结构（核心）
 
 ```
 httprun-java/
-├── pom.xml                              # Maven 配置
+├── pom.xml                  # Maven 配置
 ├── src/
 │   ├── main/
-│   │   ├── java/
-│   │   │   └── com/
-│   │   │       └── httprun/
-│   │   │           ├── HttpRunApplication.java      # 启动类
-│   │   │           │
-│   │   │           ├── config/                      # 配置类
-│   │   │           │   ├── SecurityConfig.java      # Spring Security 配置
-│   │   │           │   ├── JwtConfig.java           # JWT 配置
-│   │   │           │   ├── SwaggerConfig.java       # OpenAPI 配置
-│   │   │           │   ├── RedisConfig.java         # Redis 配置
-│   │   │           │   ├── AsyncConfig.java         # 异步配置
-│   │   │           │   └── WebConfig.java           # Web 配置
-│   │   │           │
-│   │   │           ├── controller/                  # 控制器层
-│   │   │           │   ├── AdminController.java     # 管理员接口
-│   │   │           │   ├── UserController.java      # 用户接口
-│   │   │           │   └── AuthController.java      # 认证接口
-│   │   │           │
-│   │   │           ├── service/                     # 服务层
-│   │   │           │   ├── CommandService.java      # 命令服务接口
-│   │   │           │   ├── JwtService.java          # JWT 服务接口
-│   │   │           │   ├── AccessLogService.java    # 访问日志服务接口
-│   │   │           │   └── impl/                    # 服务实现
-│   │   │           │       ├── CommandServiceImpl.java
-│   │   │           │       ├── JwtServiceImpl.java
-│   │   │           │       └── AccessLogServiceImpl.java
-│   │   │           │
-│   │   │           ├── repository/                  # 数据访问层
-│   │   │           │   ├── CommandRepository.java
-│   │   │           │   ├── TokenRepository.java
-│   │   │           │   └── AccessLogRepository.java
-│   │   │           │
-│   │   │           ├── entity/                      # 实体类
-│   │   │           │   ├── Command.java
-│   │   │           │   ├── Token.java
-│   │   │           │   └── AccessLog.java
-│   │   │           │
-│   │   │           ├── dto/                         # 数据传输对象
-│   │   │           │   ├── request/
-│   │   │           │   │   ├── CreateCommandRequest.java
-│   │   │           │   │   ├── RunCommandRequest.java
-│   │   │           │   │   └── CreateTokenRequest.java
-│   │   │           │   └── response/
-│   │   │           │       ├── CommandResponse.java
-│   │   │           │       ├── TokenResponse.java
-│   │   │           │       └── PageResponse.java
-│   │   │           │
-│   │   │           ├── executor/                    # 命令执行引擎
-│   │   │           │   ├── CommandExecutor.java     # 执行器接口
-│   │   │           │   ├── LocalCommandExecutor.java    # 本地执行
-│   │   │           │   ├── SshCommandExecutor.java      # SSH 远程执行
-│   │   │           │   ├── AgentCommandExecutor.java    # Agent 执行
-│   │   │           │   └── CommandTemplate.java     # 命令模板处理
-│   │   │           │
-│   │   │           ├── security/                    # 安全模块
-│   │   │           │   ├── JwtAuthenticationFilter.java
-│   │   │           │   ├── JwtTokenProvider.java
-│   │   │           │   ├── UserDetailsServiceImpl.java
-│   │   │           │   └── SecurityUtils.java
-│   │   │           │
-│   │   │           ├── exception/                   # 异常处理
-│   │   │           │   ├── GlobalExceptionHandler.java
-│   │   │           │   ├── BusinessException.java
-│   │   │           │   ├── UnauthorizedException.java
-│   │   │           │   └── CommandExecutionException.java
-│   │   │           │
-│   │   │           ├── aspect/                      # AOP 切面
-│   │   │           │   ├── LoggingAspect.java       # 日志切面
-│   │   │           │   └── AccessLogAspect.java     # 访问日志切面
-│   │   │           │
-│   │   │           ├── enums/                       # 枚举类
-│   │   │           │   ├── CommandStatus.java
-│   │   │           │   ├── ExecutionMode.java
-│   │   │           │   └── ErrorCode.java
-│   │   │           │
-│   │   │           └── util/                        # 工具类
-│   │   │               ├── TemplateUtils.java
-│   │   │               ├── ShellUtils.java
-│   │   │               └── IpUtils.java
-│   │   │
+│   │   ├── java/com/httprun/
+│   │   │   ├── HttpRunApplication.java
+│   │   │   ├── config/      # 配置类（安全、JWT、Swagger、异步等）
+│   │   │   ├── controller/  # API 控制器（Admin/User/Auth/Health）
+│   │   │   ├── service/     # 业务服务与实现
+│   │   │   ├── repository/  # JPA 数据访问
+│   │   │   ├── entity/      # 实体类（Command/Token/AccessLog/...）
+│   │   │   ├── executor/    # 命令执行引擎（本地/SSH/模板/安全）
+│   │   │   ├── security/    # JWT、权限、IP白名单等安全模块
+│   │   │   ├── aspect/      # 日志、权限、审计切面
+│   │   │   ├── exception/   # 全局异常
+│   │   │   └── enums/       # 枚举
 │   │   └── resources/
-│   │       ├── application.yml                      # 主配置文件
-│   │       ├── application-dev.yml                  # 开发环境配置
-│   │       ├── application-prod.yml                 # 生产环境配置
-│   │       ├── db/
-│   │       │   └── migration/                       # Flyway 迁移脚本
-│   │       │       ├── V1__create_commands_table.sql
-│   │       │       ├── V2__create_tokens_table.sql
-│   │       │       └── V3__create_access_logs_table.sql
-│   │       └── static/                              # 前端静态资源
-│   │
-│   └── test/                                        # 测试代码
-│       └── java/
-│           └── com/httprun/
-│               ├── controller/
-│               ├── service/
-│               └── executor/
-│
-├── webapp/                                          # React 前端（与 Go 版本相同）
+│   │       ├── application.yml / application-prod.yml
+│   │       ├── db/migration/ # Flyway SQL 脚本
+│   │       └── logback-spring.xml
+│   └── test/java/com/httprun/ # 单元测试
+├── webapp/                  # React 前端（Ant Design Pro）
 ├── docker/
 │   ├── Dockerfile
 │   └── docker-compose.yml
-└── docs/
-    └── api/
+└── docs/                    # 文档
 ```
+
+---
+
+## 关键架构与核心流程
+
+### 1. API 到命令执行全链路
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant SpringBoot
+    participant Security
+    participant Controller
+    participant Service
+    participant Executor
+    Client->>Gateway: HTTP(S) 请求 (x-token)
+    Gateway->>SpringBoot: 反向代理/负载均衡
+    SpringBoot->>Security: JwtAuthenticationFilter 校验Token
+    Security->>Controller: 注入认证上下文
+    Controller->>Service: 参数校验/权限检查
+    Service->>Executor: 渲染模板/选择执行器
+    Executor->>Executor: 本地/SSH/Agent 执行命令
+    Executor->>Service: 返回执行结果
+    Service->>Controller: 记录审计/日志
+    Controller->>Client: 返回结果
+```
+
+### 2. 安全与权限
+
+- JWT 鉴权 + Token 黑名单 + 指纹绑定
+- RBAC 角色权限模型（支持命令级授权）
+- 命令参数多层校验（类型/长度/危险字符/正则/白名单）
+- IP 白名单、审批流、操作审计
+
+### 3. 命令执行引擎
+
+- 支持本地（ProcessBuilder）、SSH（JSch）、Agent（预留）三种模式
+- 命令模板渲染（{{.var}}）、参数安全校验、超时/并发/沙箱隔离
+- 并发控制（Semaphore）、队列满异常、执行超时强杀
+
+### 4. 审批与审计
+
+- 支持命令审批流（PENDING→APPROVED/REJECTED→EXECUTED）
+- 审批、执行、操作全链路结构化审计日志（Logback JSON）
+- 审批/执行通知机制（可扩展钉钉/邮件等）
+
+### 5. 监控与可观测性
+
+- Micrometer + Prometheus + Grafana 监控命令执行、Token、审批等指标
+- /actuator/health、/actuator/prometheus 健康与指标端点
+- 结构化日志、审计日志、命令审计分离
+
+---
+
+## 配置与部署
+
+### application.yml 关键配置
+
+```yaml
+server:
+    port: 8081
+spring:
+    datasource:
+        url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/httprun?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+        username: ${DB_USER:root}
+        password: ${DB_PASSWORD:root}
+        driver-class-name: com.mysql.cj.jdbc.Driver
+    data:
+        redis:
+            host: ${REDIS_HOST:localhost}
+            port: ${REDIS_PORT:6379}
+            password: ${REDIS_PASSWORD:}
+    flyway:
+        enabled: true
+        locations: classpath:db/migration
+jwt:
+    secret: ${JWT_SECRET:your-256-bit-secret-key-here-at-least-32-characters}
+    expiration: 86400000
+command:
+    executor:
+        max-concurrent: 10
+        default-timeout: 30
+        max-timeout: 300
+```
+
+### Docker 部署
+
+```dockerfile
+# 多阶段构建
+FROM maven:3.9-eclipse-temurin-17 AS builder
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+COPY src ./src
+RUN mvn package -DskipTests
+FROM eclipse-temurin:17-jre-alpine
+RUN apk --no-cache add curl bash
+WORKDIR /app
+COPY --from=builder /app/target/*.jar app.jar
+COPY webapp/build ./webapp/build
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+        CMD curl -f http://localhost:8081/api/health || exit 1
+EXPOSE 8081
+ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-jar", "app.jar"]
+```
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+    httprun:
+        build: .
+        ports:
+            - "8081:8081"
+        environment:
+            - SPRING_PROFILES_ACTIVE=prod
+            - DB_HOST=mysql
+            - DB_PORT=3306
+            - DB_USER=httprun
+            - DB_PASSWORD=httprun123
+            - REDIS_HOST=redis
+            - JWT_SECRET=your-super-secret-key-at-least-32-characters
+        depends_on:
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_started
+        restart: unless-stopped
+    mysql:
+        image: mysql:8.0
+        environment:
+            - MYSQL_ROOT_PASSWORD=root123
+            - MYSQL_DATABASE=httprun
+            - MYSQL_USER=httprun
+            - MYSQL_PASSWORD=httprun123
+        volumes:
+            - mysql_data:/var/lib/mysql
+        healthcheck:
+            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        restart: unless-stopped
+    redis:
+        image: redis:7-alpine
+        volumes:
+            - redis_data:/data
+        restart: unless-stopped
+volumes:
+    mysql_data:
+    redis_data:
+```
+
+---
+
+## 参考与开源
+
+- Spring Boot 官方文档：https://docs.spring.io/spring-boot/docs/current/reference/html/
+- Spring Security：https://docs.spring.io/spring-security/reference/index.html
+- Spring Data JPA：https://docs.spring.io/spring-data/jpa/docs/current/reference/html/
+- JJWT：https://github.com/jwtk/jjwt
+- SpringDoc OpenAPI：https://springdoc.org/
+- Flyway：https://flywaydb.org/documentation/
+- Micrometer：https://micrometer.io/docs
+- Prometheus：https://prometheus.io/docs/
+- Grafana：https://grafana.com/docs/
+- 项目地址：https://github.com/paul-yangmy/httprun-java
 
 ---
 
