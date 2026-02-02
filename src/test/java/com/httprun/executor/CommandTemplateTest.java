@@ -27,26 +27,26 @@ class CommandTemplateTest {
 
         // 创建命令配置
         commandConfig = new CommandConfig();
-        
+
         ParamDefine targetParam = new ParamDefine();
         targetParam.setName("target");
         targetParam.setRequired(true);
         targetParam.setSensitive(false);
-        
+
         ParamDefine countParam = new ParamDefine();
         countParam.setName("count");
         countParam.setRequired(false);
         countParam.setDefaultValue("4");
         countParam.setSensitive(false);
-        
+
         ParamDefine passwordParam = new ParamDefine();
         passwordParam.setName("password");
         passwordParam.setRequired(true);
         passwordParam.setSensitive(true);
-        
+
         commandConfig.setParams(List.of(targetParam, countParam, passwordParam));
         commandConfig.setCommand("ping {{.target}} -c {{.count}} -p {{password}}");
-        
+
         testCommand = new Command();
         testCommand.setName("test-ping");
         testCommand.setCommandConfig(commandConfig);
@@ -57,15 +57,15 @@ class CommandTemplateTest {
         // Given
         RunCommandRequest request = new RunCommandRequest();
         request.setName("test-ping");
-        
+
         RunCommandRequest.ParamInput param1 = new RunCommandRequest.ParamInput();
         param1.setName("target");
         param1.setValue("google.com");
-        
+
         RunCommandRequest.ParamInput param2 = new RunCommandRequest.ParamInput();
         param2.setName("password");
         param2.setValue("secret123");
-        
+
         request.setParams(List.of(param1, param2));
 
         // When
@@ -80,15 +80,15 @@ class CommandTemplateTest {
         // Given
         RunCommandRequest request = new RunCommandRequest();
         request.setName("test-ping");
-        
+
         RunCommandRequest.ParamInput param1 = new RunCommandRequest.ParamInput();
         param1.setName("target");
         param1.setValue("example.com");
-        
+
         RunCommandRequest.ParamInput param2 = new RunCommandRequest.ParamInput();
         param2.setName("password");
         param2.setValue("pass123");
-        
+
         request.setParams(List.of(param1, param2));
 
         // When
@@ -103,15 +103,15 @@ class CommandTemplateTest {
         // Given
         RunCommandRequest request = new RunCommandRequest();
         request.setName("test-ping");
-        
+
         RunCommandRequest.ParamInput param1 = new RunCommandRequest.ParamInput();
         param1.setName("target");
         param1.setValue("google.com");
-        
+
         RunCommandRequest.ParamInput param2 = new RunCommandRequest.ParamInput();
         param2.setName("password");
         param2.setValue("secret123");
-        
+
         request.setParams(List.of(param1, param2));
 
         // When
@@ -129,15 +129,15 @@ class CommandTemplateTest {
         // Given
         RunCommandRequest request = new RunCommandRequest();
         request.setName("test-ping");
-        
+
         RunCommandRequest.ParamInput param1 = new RunCommandRequest.ParamInput();
         param1.setName("target");
         param1.setValue("google.com");
-        
+
         RunCommandRequest.ParamInput param2 = new RunCommandRequest.ParamInput();
         param2.setName("password");
         param2.setValue("pass123");
-        
+
         request.setParams(List.of(param1, param2));
 
         // When / Then
@@ -149,11 +149,11 @@ class CommandTemplateTest {
         // Given
         RunCommandRequest request = new RunCommandRequest();
         request.setName("test-ping");
-        
+
         RunCommandRequest.ParamInput param1 = new RunCommandRequest.ParamInput();
         param1.setName("count");
         param1.setValue("10");
-        
+
         request.setParams(List.of(param1));
 
         // When / Then
@@ -167,15 +167,15 @@ class CommandTemplateTest {
         // Given
         RunCommandRequest request = new RunCommandRequest();
         request.setName("test-ping");
-        
+
         RunCommandRequest.ParamInput param1 = new RunCommandRequest.ParamInput();
         param1.setName("target");
         param1.setValue("google.com; rm -rf /");
-        
+
         RunCommandRequest.ParamInput param2 = new RunCommandRequest.ParamInput();
         param2.setName("password");
         param2.setValue("pass123");
-        
+
         request.setParams(List.of(param1, param2));
 
         // When / Then

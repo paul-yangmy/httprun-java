@@ -25,26 +25,26 @@ class SensitiveDataMaskerTest {
     void setUp() {
         // 创建测试命令
         CommandConfig config = new CommandConfig();
-        
+
         ParamDefine passwordParam = new ParamDefine();
         passwordParam.setName("password");
         passwordParam.setSensitive(true);
-        
+
         ParamDefine apiKeyParam = new ParamDefine();
         apiKeyParam.setName("api_key");
         apiKeyParam.setSensitive(true);
-        
+
         ParamDefine usernameParam = new ParamDefine();
         usernameParam.setName("username");
         usernameParam.setSensitive(false);
-        
+
         config.setParams(List.of(passwordParam, apiKeyParam, usernameParam));
         config.setCommand("ssh {{username}}@{{host}} -p {{password}}");
-        
+
         testCommand = new Command();
         testCommand.setName("test-ssh");
         testCommand.setCommandConfig(config);
-        
+
         // 创建测试参数
         testParams = new HashMap<>();
         testParams.put("username", "admin");
@@ -105,15 +105,15 @@ class SensitiveDataMaskerTest {
         // Given
         RunCommandRequest request = new RunCommandRequest();
         request.setName("test-ssh");
-        
+
         RunCommandRequest.ParamInput param1 = new RunCommandRequest.ParamInput();
         param1.setName("username");
         param1.setValue("admin");
-        
+
         RunCommandRequest.ParamInput param2 = new RunCommandRequest.ParamInput();
         param2.setName("password");
         param2.setValue("secret123");
-        
+
         request.setParams(List.of(param1, param2));
 
         // When
