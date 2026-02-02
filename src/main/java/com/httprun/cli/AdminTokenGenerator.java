@@ -1,5 +1,6 @@
 package com.httprun.cli;
 
+import com.httprun.dto.request.CreateTokenRequest;
 import com.httprun.entity.Token;
 import com.httprun.service.TokenService;
 import lombok.RequiredArgsConstructor;
@@ -36,11 +37,22 @@ public class AdminTokenGenerator implements CommandLineRunner {
         try {
             // 解析命令行参数
             String name = getArgValue(args, "--name", "admin");
-            String subject = getArgValue(args, "--subject", "admin");
-            int expiresInHours = Integer.parseInt(getArgValue(args, "--expires", "8760")); // 默认 1 年
+            int expiresInHours = Integer.parseInt(getArgValue(args, "--expires", "0")); // 默认永不过期
+
+            // 构建创建请求 - 管理员 Token 不设置时间范围限制
+            CreateTokenRequest request = new CreateTokenRequest();
+            request.setName(name);
+            request.setCommands(null); // 管理员拥有所有命令权限
+            request.setIsAdmin(true);
+            request.setExpiresIn(expiresInHours); // 0 表示永不过期（默认 1 年）
+            request.setRemark("系统初始化生成的管理员 Token");
+            // 不设置时间范围限制，确保管理员 Token 永久有效
+            request.setAllowedStartTime(null);
+            request.setAllowedEndTime(null);
+            request.setAllowedWeekdays(null);
 
             // 生成管理员 Token
-            Token token = tokenService.createToken(name, subject, true, expiresInHours);
+            Token token = tokenService.createToken(request);
 
             log.info("");
             log.info("========================================");
@@ -51,6 +63,7 @@ public class AdminTokenGenerator implements CommandLineRunner {
             log.info("Subject:      {}", token.getSubject());
             log.info("Is Admin:     {}", token.getIsAdmin());
             log.info("Expires At:   {}", java.time.Instant.ofEpochSecond(token.getExpiresAt()));
+            log.info("Time Limit:   无限制（永久有效）");
             log.info("");
             log.info("JWT Token:");
             log.info("----------------------------------------");
