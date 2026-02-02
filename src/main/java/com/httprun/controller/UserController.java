@@ -32,11 +32,9 @@ public class UserController {
     private final CommandService commandService;
 
     @GetMapping("/commands")
-    @Operation(summary = "获取用户可执行的命令列表", 
-            description = "根据当前用户权限返回可执行的命令列表。管理员可查看所有命令，普通用户仅看到授权的命令")
+    @Operation(summary = "获取用户可执行的命令列表", description = "根据当前用户权限返回可执行的命令列表。管理员可查看所有命令，普通用户仅看到授权的命令")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "命令列表获取成功",
-                    content = @Content(schema = @Schema(implementation = CommandResponse.class))),
+            @ApiResponse(responseCode = "200", description = "命令列表获取成功", content = @Content(schema = @Schema(implementation = CommandResponse.class))),
             @ApiResponse(responseCode = "401", description = "未授权访问")
     })
     public ResponseEntity<List<CommandResponse>> getCommandList(
@@ -52,29 +50,23 @@ public class UserController {
 
     @GetMapping("/valid")
     @Operation(summary = "验证 Token 有效性", description = "快速验证当前 Token 是否有效，用于健康检查")
-    @ApiResponse(responseCode = "200", description = "Token 有效",
-            content = @Content(schema = @Schema(example = "{\"ok\":true}")))
+    @ApiResponse(responseCode = "200", description = "Token 有效", content = @Content(schema = @Schema(example = "{\"ok\":true}")))
     public ResponseEntity<Map<String, Boolean>> validateToken() {
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
     @PostMapping("/**")
-    @Operation(summary = "执行命令", 
-            description = "执行指定的命令。命令名称从 URL 路径中获取，参数通过请求体传递。" +
-                    "系统会验证用户权限、参数安全性，并记录执行日志")
+    @Operation(summary = "执行命令", description = "执行指定的命令。命令名称从 URL 路径中获取，参数通过请求体传递。" +
+            "系统会验证用户权限、参数安全性，并记录执行日志")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "命令执行成功",
-                    content = @Content(schema = @Schema(implementation = CommandExecutionResult.class))),
+            @ApiResponse(responseCode = "200", description = "命令执行成功", content = @Content(schema = @Schema(implementation = CommandExecutionResult.class))),
             @ApiResponse(responseCode = "400", description = "参数验证失败或命令不存在"),
             @ApiResponse(responseCode = "401", description = "未授权访问"),
             @ApiResponse(responseCode = "403", description = "权限不足"),
             @ApiResponse(responseCode = "500", description = "命令执行失败")
     })
     public ResponseEntity<CommandExecutionResult> runCommand(
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "命令执行请求，包含命令名称和参数列表",
-                    content = @Content(schema = @Schema(example = "{\"name\":\"deploy-app\",\"params\":[{\"name\":\"env\",\"value\":\"prod\"},{\"name\":\"version\",\"value\":\"1.0.0\"}]}")))
-            @RequestBody RunCommandRequest request,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "命令执行请求，包含命令名称和参数列表", content = @Content(schema = @Schema(example = "{\"name\":\"deploy-app\",\"params\":[{\"name\":\"env\",\"value\":\"prod\"},{\"name\":\"version\",\"value\":\"1.0.0\"}]}"))) @RequestBody RunCommandRequest request,
             @AuthenticationPrincipal JwtUserPrincipal principal) {
 
         String subject = principal.admin() ? "admin" : principal.subject();

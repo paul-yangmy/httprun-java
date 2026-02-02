@@ -55,7 +55,7 @@ public class RunCommandRequest {
     public static class ParamInput {
         @Schema(description = "参数名称", example = "env", required = true)
         private String name;
-        
+
         @Schema(description = "参数值", example = "prod", required = true)
         private Object value;
     }
