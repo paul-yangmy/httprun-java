@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS commands (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_command_name (name),
     INDEX idx_command_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='命令配置表';
 
 -- 插入示例命令
 INSERT INTO commands (name, description, command_config, execution_mode, timeout_seconds) VALUES

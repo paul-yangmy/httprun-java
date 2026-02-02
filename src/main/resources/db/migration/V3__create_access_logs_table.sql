@@ -1,16 +1,26 @@
--- V3: 创建 access_logs 表
+-- V3: 创建 access_logs 表（包含完整审计字段）
 CREATE TABLE IF NOT EXISTS access_logs (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    token_id VARCHAR(500),
-    path VARCHAR(200) NOT NULL,
-    ip VARCHAR(50),
-    method VARCHAR(20),
-    request TEXT,
-    response MEDIUMTEXT,
-    status_code INT,
-    duration BIGINT,
+    token_id VARCHAR(500) COMMENT 'Token ID',
+    path VARCHAR(200) NOT NULL COMMENT '请求路径',
+    ip VARCHAR(50) COMMENT '客户端IP',
+    method VARCHAR(20) COMMENT '请求方法',
+    request TEXT COMMENT '请求内容',
+    response MEDIUMTEXT COMMENT '响应内容',
+    status_code INT COMMENT 'HTTP状态码',
+    duration BIGINT COMMENT '耗时（毫秒）',
+    user_agent VARCHAR(500) COMMENT '用户代理',
+    referer VARCHAR(500) COMMENT '来源页面',
+    source VARCHAR(20) COMMENT '请求来源（WEB/API/CLI）',
+    forwarded_for VARCHAR(200) COMMENT '原始客户端IP（代理场景）',
+    request_id VARCHAR(50) COMMENT '请求链路ID',
+    command_name VARCHAR(100) COMMENT '命令/接口名称',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_accesslog_token (token_id(100)),
     INDEX idx_accesslog_path (path),
-    INDEX idx_accesslog_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    INDEX idx_accesslog_created (created_at),
+    INDEX idx_accesslog_ip (ip),
+    INDEX idx_accesslog_source (source),
+    INDEX idx_accesslog_request_id (request_id),
+    INDEX idx_accesslog_command_name (command_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='访问日志表';
