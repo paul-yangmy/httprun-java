@@ -20,11 +20,13 @@ import {
   InfoCircleOutlined,
   StarOutlined,
   StarFilled,
+  CodeOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
 import { getUserCommandList } from '@/services/httprun';
 import CommandExecutor from '@/components/Command/Executor';
+import CodeSnippet from '@/components/Command/CodeSnippet';
 import { isFavorite, toggleFavorite } from '@/pages/Command/Favorites';
 import styles from './index.module.less';
 
@@ -34,6 +36,7 @@ const UserCommandList: React.FC = () => {
   const [items, setItems] = useState<HTTPRUN.CommandItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [currentCommand, setCurrentCommand] = useState<HTTPRUN.CommandItem | null>(null);
+  const [codeSnippetCommand, setCodeSnippetCommand] = useState<HTTPRUN.CommandItem | null>(null);
   const [searchText, setSearchText] = useState<string>('');
   const [favoriteMap, setFavoriteMap] = useState<Record<string, boolean>>({});
 
@@ -134,7 +137,7 @@ const UserCommandList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 200,
       fixed: 'right' as any,
       align: 'center',
       render: (_, record) => (
@@ -151,6 +154,14 @@ const UserCommandList: React.FC = () => {
                 )
               }
               onClick={() => handleToggleFavorite(record.name)}
+            />
+          </Tooltip>
+          <Tooltip title="代码片段">
+            <Button
+              type="text"
+              size="small"
+              icon={<CodeOutlined />}
+              onClick={() => setCodeSnippetCommand(record)}
             />
           </Tooltip>
           <Button
@@ -172,6 +183,14 @@ const UserCommandList: React.FC = () => {
           open
           command={currentCommand}
           onClose={() => setCurrentCommand(null)}
+        />
+      )}
+
+      {codeSnippetCommand && (
+        <CodeSnippet
+          open
+          command={codeSnippetCommand}
+          onClose={() => setCodeSnippetCommand(null)}
         />
       )}
 
