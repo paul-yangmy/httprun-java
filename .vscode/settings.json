@@ -8,6 +8,7 @@
     "git add": true,
     "git commit": true,
     "mvn clean": true,
-    "npm run build": true
+    "npm run build": true,
+    "java": true
   }
 }
