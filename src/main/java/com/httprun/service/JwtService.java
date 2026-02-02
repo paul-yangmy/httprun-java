@@ -14,7 +14,7 @@ public interface JwtService {
      * @param expiresAt 过期时间（Unix 时间戳，秒）
      * @return JWT Token
      */
-    String generateToken(String subject, String name, boolean isAdmin, long expiresAt);
+    String generateToken(String subject, String name, boolean isAdmin, Long expiresAt);
 
     /**
      * 验证 Token

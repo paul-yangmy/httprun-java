@@ -33,9 +33,9 @@ public class CreateTokenRequest {
     private Boolean isAdmin = false;
 
     /**
-     * 有效期（小时），默认24小时，0表示永不过期
+     * 有效期（小时），默认24小时，-1表示永久有效
      */
-    @Schema(description = "有效期（小时），0 表示永不过期", example = "24", defaultValue = "24")
+    @Schema(description = "有效期（小时），-1 表示永久有效", example = "24", defaultValue = "24")
     private Integer expiresIn = 24;
 
     /**

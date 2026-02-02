@@ -30,18 +30,22 @@ public class JwtTokenProvider {
     /**
      * 生成 JWT Token
      */
-    public String generateToken(String subject, String name, boolean isAdmin, long expiresAt) {
+    public String generateToken(String subject, String name, boolean isAdmin, Long expiresAt) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("name", name); // 用户名
         claims.put("admin", isAdmin); // 是否管理员
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(subject) // 授权的命令列表
                 .claims(claims)
-                .issuedAt(new Date())
-                .expiration(new Date(expiresAt * 1000))
-                .signWith(secretKey)
-                .compact();
+                .issuedAt(new Date());
+
+        // 如果 expiresAt 为 null，则不设置过期时间（永久有效）
+        if (expiresAt != null) {
+            builder.expiration(new Date(expiresAt * 1000));
+        }
+
+        return builder.signWith(secretKey).compact();
     }
 
     /**

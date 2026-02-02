@@ -37,8 +37,11 @@ public class TokenServiceImpl implements TokenService {
     public Token createToken(String name, String subject, boolean isAdmin, int expiresIn) {
         // 计算过期时间（Unix 时间戳，秒）
         long now = Instant.now().getEpochSecond();
-        long expiresAt;
-        if (expiresIn <= 0) {
+        Long expiresAt;
+        if (expiresIn == -1) {
+            // -1 表示永久有效
+            expiresAt = null;
+        } else if (expiresIn <= 0) {
             // 默认 1 年
             expiresAt = now + 365L * 24 * 60 * 60;
         } else {
@@ -71,8 +74,11 @@ public class TokenServiceImpl implements TokenService {
         // 计算过期时间（Unix 时间戳，秒）
         long now = Instant.now().getEpochSecond();
         int expiresIn = request.getExpiresIn() != null ? request.getExpiresIn() : 24;
-        long expiresAt;
-        if (expiresIn <= 0) {
+        Long expiresAt;
+        if (expiresIn == -1) {
+            // -1 表示永久有效
+            expiresAt = null;
+        } else if (expiresIn <= 0) {
             // 默认 1 年
             expiresAt = now + 365L * 24 * 60 * 60;
         } else {

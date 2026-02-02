@@ -21,7 +21,7 @@ public class JwtServiceImpl implements JwtService {
     private final JwtConfig jwtConfig;
 
     @Override
-    public String generateToken(String subject, String name, boolean isAdmin, long expiresAt) {
+    public String generateToken(String subject, String name, boolean isAdmin, Long expiresAt) {
         return jwtTokenProvider.generateToken(subject, name, isAdmin, expiresAt);
     }
 

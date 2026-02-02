@@ -47,9 +47,9 @@ public class Token {
     private Long issuedAt;
 
     /**
-     * 过期时间（Unix 时间戳）
+     * 过期时间（Unix 时间戳，null 表示永久有效）
      */
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Long expiresAt;
 
     /**

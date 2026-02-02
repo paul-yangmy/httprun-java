@@ -34,9 +34,9 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
     boolean existsByJwtToken(String jwtToken);
 
     /**
-     * 查找未撤销的有效 Token（使用 Unix 时间戳）
+     * 查找未撤销的有效 Token（使用 Unix 时间戳，expiresAt 为 null 表示永久有效）
      */
-    @Query("SELECT t FROM Token t WHERE t.jwtToken = :jwtToken AND t.revoked = false AND t.expiresAt > :now")
+    @Query("SELECT t FROM Token t WHERE t.jwtToken = :jwtToken AND t.revoked = false AND (t.expiresAt IS NULL OR t.expiresAt > :now)")
     Optional<Token> findValidToken(@Param("jwtToken") String jwtToken, @Param("now") Long now);
 
     /**
@@ -57,10 +57,10 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
     int revokeToken(@Param("id") Long id);
 
     /**
-     * 批量撤销过期 Token
+     * 批量撤销过期 Token（不包括永久 Token）
      */
     @Modifying
-    @Query("UPDATE Token t SET t.revoked = true WHERE t.expiresAt < :now AND t.revoked = false")
+    @Query("UPDATE Token t SET t.revoked = true WHERE t.expiresAt IS NOT NULL AND t.expiresAt < :now AND t.revoked = false")
     int revokeExpiredTokens(@Param("now") Long now);
 
     /**
@@ -83,9 +83,9 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
     boolean existsByNameAndRevokedFalse(String name);
 
     /**
-     * 检查 JWT Token 是否有效（未撤销且未过期）
+     * 检查 JWT Token 是否有效（未撤销且未过期，永久 token 始终有效）
      */
     @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM Token t " +
-            "WHERE t.jwtToken = :jwtToken AND t.revoked = false AND t.expiresAt > :now")
+            "WHERE t.jwtToken = :jwtToken AND t.revoked = false AND (t.expiresAt IS NULL OR t.expiresAt > :now)")
     boolean existsValidToken(@Param("jwtToken") String jwtToken, @Param("now") Long now);
 }
