@@ -80,7 +80,10 @@ const AdminToken: React.FC = () => {
     [refresh],
   );
 
-  const isExpired = (expiresAt: number) => {
+  const isExpired = (expiresAt: number | null) => {
+    if (expiresAt === null || expiresAt === undefined) {
+      return false; // 永久 token 不过期
+    }
     return expiresAt * 1000 < Date.now();
   };
 
@@ -99,14 +102,15 @@ const AdminToken: React.FC = () => {
       title: 'ID',
       dataIndex: 'id',
       key: 'id',
-      width: 80,
+      width: 70,
       align: 'center',
     },
     {
       title: '名称',
       dataIndex: 'name',
       key: 'name',
-      width: 150,
+      width: 140,
+      ellipsis: true,
       render: (name: string) => (
         <Space>
           <KeyOutlined style={{ color: '#1677ff' }} />
@@ -118,7 +122,7 @@ const AdminToken: React.FC = () => {
       title: 'Token',
       dataIndex: 'jwtToken',
       key: 'jwtToken',
-      width: 200,
+      width: 180,
       ellipsis: true,
       render: (token: string) => (
         <Tooltip title="点击复制完整 Token">
@@ -136,7 +140,8 @@ const AdminToken: React.FC = () => {
       title: '授权命令',
       dataIndex: 'subject',
       key: 'subject',
-      width: 200,
+      width: 180,
+      responsive: ['md'] as any,
       render: (subject: string) => {
         const commands = subject?.split(',').filter(Boolean) || [];
         if (commands.length === 0) return <Text type="secondary">-</Text>;
@@ -172,7 +177,15 @@ const AdminToken: React.FC = () => {
       dataIndex: 'expiresAt',
       key: 'expiresAt',
       width: 170,
-      render: (time: number) => {
+      render: (time: number | null) => {
+        if (time === null || time === undefined) {
+          return (
+            <Space>
+              <Badge status="success" />
+              <Text strong style={{ color: '#52c41a' }}>永久有效</Text>
+            </Space>
+          );
+        }
         const expired = isExpired(time);
         return (
           <Space>
@@ -190,6 +203,9 @@ const AdminToken: React.FC = () => {
       width: 80,
       align: 'center',
       render: (_, record) => {
+        if (record.expiresAt === null || record.expiresAt === undefined) {
+          return <Tag color="success">永久</Tag>;
+        }
         const expired = isExpired(record.expiresAt);
         return (
           <Tag color={expired ? 'error' : 'success'}>
@@ -245,8 +261,9 @@ const AdminToken: React.FC = () => {
       title: '备注',
       dataIndex: 'remark',
       key: 'remark',
-      width: 150,
+      width: 140,
       ellipsis: true,
+      responsive: ['lg'] as any,
       render: (remark: string) => 
         remark ? (
           <Tooltip title={remark}>
@@ -259,7 +276,8 @@ const AdminToken: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 100,
+      width: 90,
+      fixed: 'right' as any,
       align: 'center',
       render: (_, record) => (
         <Dropdown
@@ -299,13 +317,13 @@ const AdminToken: React.FC = () => {
           </Space>
         }
         extra={
-          <Space>
+          <Space wrap>
             <Input
-              placeholder="搜索名称或授权命令"
+              placeholder="搜索 Token"
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 200 }}
+              style={{ width: 180, minWidth: 120 }}
               allowClear
             />
             <Button icon={<ReloadOutlined />} onClick={refresh}>
@@ -316,7 +334,7 @@ const AdminToken: React.FC = () => {
               icon={<PlusOutlined />}
               onClick={() => setShowAddTokenModal(true)}
             >
-              添加 Token
+              添加
             </Button>
           </Space>
         }
@@ -327,6 +345,7 @@ const AdminToken: React.FC = () => {
           dataSource={filteredTokenList}
           rowKey="id"
           loading={loading}
+          scroll={{ x: 1100 }}
           pagination={{
             pageSize: page.pageSize,
             current: page.pageIndex,
@@ -335,6 +354,7 @@ const AdminToken: React.FC = () => {
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
             onChange: (pageIndex, pageSize) => setPage({ pageIndex, pageSize }),
+            responsive: true,
           }}
           locale={{
             emptyText: <Empty description="暂无 Token" />,

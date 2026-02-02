@@ -76,19 +76,96 @@ ol {
   list-style: none;
 }
 
-@media (max-width: 768px) {
+// 响应式断点
+@screen-xs: 480px;
+@screen-sm: 576px;
+@screen-md: 768px;
+@screen-lg: 992px;
+@screen-xl: 1200px;
+@screen-xxl: 1600px;
+
+// 小屏幕设备 (手机)
+@media (max-width: @screen-sm) {
+  .ant-pro-page-container {
+    padding: 12px;
+  }
+  
+  .ant-card {
+    margin-bottom: 12px;
+  }
+  
+  .ant-btn {
+    font-size: 12px;
+    height: 28px;
+    padding: 0 8px;
+  }
+  
+  .ant-table {
+    font-size: 12px;
+    
+    .ant-table-thead > tr > th {
+      padding: 8px 4px;
+      font-size: 12px;
+    }
+    
+    .ant-table-tbody > tr > td {
+      padding: 8px 4px;
+      font-size: 12px;
+    }
+  }
+}
+
+// 中等屏幕 (平板)
+@media (min-width: @screen-sm) and (max-width: @screen-md) {
+  .ant-pro-page-container {
+    padding: 16px;
+  }
+  
+  .ant-table {
+    font-size: 13px;
+  }
+}
+
+// 表格响应式
+@media (max-width: @screen-md) {
   .ant-table {
     width: 100%;
     overflow-x: auto;
+    
     &-thead > tr,
     &-tbody > tr {
       > th,
       > td {
-        white-space: pre;
+        white-space: nowrap;
+        min-width: 80px;
+        
         > span {
           display: block;
         }
       }
     }
+    
+    // 操作列固定
+    .ant-table-cell-fix-right {
+      position: sticky !important;
+      right: 0;
+      background: #fff;
+      z-index: 1;
+    }
+  }
+}
+
+// 大屏幕优化
+@media (min-width: @screen-xl) {
+  .ant-pro-page-container-children-content {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+}
+
+// 超大屏幕优化
+@media (min-width: @screen-xxl) {
+  .ant-pro-page-container-children-content {
+    max-width: 1600px;
   }
 }

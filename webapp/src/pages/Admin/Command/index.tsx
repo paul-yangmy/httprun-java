@@ -83,7 +83,8 @@ const AdminCommand: React.FC = () => {
       title: '命令名称',
       dataIndex: 'name',
       key: 'name',
-      width: 200,
+      width: 150,
+      ellipsis: true,
       render: (name: string) => (
         <Text strong style={{ color: '#1677ff' }}>
           {name}
@@ -105,7 +106,9 @@ const AdminCommand: React.FC = () => {
       title: '路径',
       dataIndex: 'path',
       key: 'path',
-      width: 200,
+      width: 180,
+      ellipsis: true,
+      responsive: ['lg'] as any,
       render: (path: string) => (
         <Text code copyable={{ text: path }}>
           {path}
@@ -115,8 +118,9 @@ const AdminCommand: React.FC = () => {
     {
       title: '参数数量',
       key: 'params',
-      width: 100,
+      width: 90,
       align: 'center',
+      responsive: ['md'] as any,
       render: (_, record) => {
         const cfg = record.commandConfig || record.command;
         return <Tag color="blue">{cfg?.params?.length || 0} 个</Tag>;
@@ -137,7 +141,8 @@ const AdminCommand: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 260,
+      width: 200,
+      fixed: 'right' as any,
       render: (_, record) => (
         <Space size="small">
           <Button
@@ -202,13 +207,13 @@ const AdminCommand: React.FC = () => {
           </Space>
         }
         extra={
-          <Space>
+          <Space wrap>
             <Input
-              placeholder="搜索命令名称或描述"
+              placeholder="搜索命令"
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 220 }}
+              style={{ width: 180, minWidth: 120 }}
               allowClear
             />
             <Button icon={<ReloadOutlined />} onClick={refresh}>
@@ -219,7 +224,7 @@ const AdminCommand: React.FC = () => {
               icon={<PlusOutlined />}
               onClick={() => setEditCommand({})}
             >
-              添加命令
+              添加
             </Button>
           </Space>
         }
@@ -230,11 +235,13 @@ const AdminCommand: React.FC = () => {
           dataSource={filteredItems}
           rowKey="id"
           loading={loading}
+          scroll={{ x: 900 }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
+            responsive: true,
           }}
           locale={{
             emptyText: <Empty description="暂无命令" />,

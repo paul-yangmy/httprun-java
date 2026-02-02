@@ -81,7 +81,9 @@ const UserCommandList: React.FC = () => {
       title: '命令名称',
       dataIndex: 'name',
       key: 'name',
-      width: 200,
+      width: 180,
+      ellipsis: true,
+      responsive: ['sm'] as any,
       render: (name: string) => (
         <Space>
           <ThunderboltOutlined style={{ color: '#1677ff' }} />
@@ -105,7 +107,8 @@ const UserCommandList: React.FC = () => {
     {
       title: '参数',
       key: 'params',
-      width: 200,
+      width: 180,
+      responsive: ['md'] as any,
       render: (_, record) => {
         const cfg = record.commandConfig || record.command;
         const params = cfg?.params || [];
@@ -131,13 +134,15 @@ const UserCommandList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 150,
+      fixed: 'right' as any,
       align: 'center',
       render: (_, record) => (
-        <Space>
+        <Space size="small">
           <Tooltip title={favoriteMap[record.name] ? '取消收藏' : '添加收藏'}>
             <Button
               type="text"
+              size="small"
               icon={
                 favoriteMap[record.name] ? (
                   <StarFilled style={{ color: '#faad14' }} />
@@ -189,13 +194,13 @@ const UserCommandList: React.FC = () => {
           </Space>
         }
         extra={
-          <Space>
+          <Space wrap>
             <Input
               placeholder="搜索命令"
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 200 }}
+              style={{ width: 200, minWidth: 120 }}
               allowClear
             />
             <Button icon={<ReloadOutlined />} onClick={refresh}>
@@ -210,11 +215,13 @@ const UserCommandList: React.FC = () => {
           dataSource={filteredItems}
           rowKey="id"
           loading={loading}
+          scroll={{ x: 800 }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
+            responsive: true,
           }}
           locale={{
             emptyText: (

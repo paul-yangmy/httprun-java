@@ -229,7 +229,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
             label="有效时长"
             name="expiresIn"
             rules={[{ required: true, message: '请选择有效时长' }]}
-            tooltip="Token 的有效时长（小时）"
+            tooltip="Token 的有效时长（小时），选择永久则不会过期"
           >
             <Select placeholder="请选择有效时长">
               <Select.Option value={24}>1 天（24小时）</Select.Option>
@@ -237,6 +237,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
               <Select.Option value={720}>30 天</Select.Option>
               <Select.Option value={2160}>90 天</Select.Option>
               <Select.Option value={8760}>1 年</Select.Option>
+              <Select.Option value={-1}>永久</Select.Option>
             </Select>
           </Form.Item>
 
