@@ -152,7 +152,7 @@ class TokenServiceTest {
         tokenService.revokeToken(1L);
 
         // Then
-        verify(tokenRepository).save(argThat(token -> token.isRevoked()));
+        verify(tokenRepository).save(argThat(token -> Boolean.TRUE.equals(token.getRevoked())));
     }
 
     @Test
