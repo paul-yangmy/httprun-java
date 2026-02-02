@@ -18,11 +18,14 @@ import {
   ReloadOutlined,
   ThunderboltOutlined,
   InfoCircleOutlined,
+  StarOutlined,
+  StarFilled,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
 import { getUserCommandList } from '@/services/httprun';
 import CommandExecutor from '@/components/Command/Executor';
+import { isFavorite, toggleFavorite } from '@/pages/Command/Favorites';
 import styles from './index.module.less';
 
 const { Text } = Typography;
@@ -32,12 +35,19 @@ const UserCommandList: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [currentCommand, setCurrentCommand] = useState<HTTPRUN.CommandItem | null>(null);
   const [searchText, setSearchText] = useState<string>('');
+  const [favoriteMap, setFavoriteMap] = useState<Record<string, boolean>>({});
 
   const refresh = useCallback(() => {
     setLoading(true);
     getUserCommandList()
       .then((data) => {
         setItems(data || []);
+        // 初始化收藏状态
+        const favMap: Record<string, boolean> = {};
+        (data || []).forEach((item) => {
+          favMap[item.name] = isFavorite(item.name);
+        });
+        setFavoriteMap(favMap);
         setLoading(false);
       })
       .catch(() => {
@@ -45,6 +55,12 @@ const UserCommandList: React.FC = () => {
         setLoading(false);
       });
   }, []);
+
+  const handleToggleFavorite = (commandName: string) => {
+    const isFav = toggleFavorite(commandName);
+    setFavoriteMap((prev) => ({ ...prev, [commandName]: isFav }));
+    message.success(isFav ? '已添加到收藏' : '已取消收藏');
+  };
 
   useEffect(() => {
     refresh();
@@ -115,16 +131,31 @@ const UserCommandList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 140,
+      width: 200,
       align: 'center',
       render: (_, record) => (
-        <Button
-          type="primary"
-          icon={<PlayCircleOutlined />}
-          onClick={() => setCurrentCommand(record)}
-        >
-          运行命令
-        </Button>
+        <Space>
+          <Tooltip title={favoriteMap[record.name] ? '取消收藏' : '添加收藏'}>
+            <Button
+              type="text"
+              icon={
+                favoriteMap[record.name] ? (
+                  <StarFilled style={{ color: '#faad14' }} />
+                ) : (
+                  <StarOutlined />
+                )
+              }
+              onClick={() => handleToggleFavorite(record.name)}
+            />
+          </Tooltip>
+          <Button
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            onClick={() => setCurrentCommand(record)}
+          >
+            运行命令
+          </Button>
+        </Space>
       ),
     },
   ];
