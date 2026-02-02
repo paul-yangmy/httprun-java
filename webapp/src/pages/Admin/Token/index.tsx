@@ -19,6 +19,7 @@ import {
   SearchOutlined,
   ReloadOutlined,
   KeyOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
@@ -27,6 +28,17 @@ import { getTokenList, deleteToken } from '@/services/httprun';
 import AddTokenModal from '@/components/Token/AddTokenModal';
 
 const { Text, Paragraph } = Typography;
+
+// 星期几名称映射
+const WEEKDAY_NAMES: Record<string, string> = {
+  '1': '周一',
+  '2': '周二',
+  '3': '周三',
+  '4': '周四',
+  '5': '周五',
+  '6': '周六',
+  '7': '周日',
+};
 
 const AdminToken: React.FC = () => {
   const [tokenList, setTokenList] = useState<HTTPRUN.Token[]>([]);
@@ -185,6 +197,64 @@ const AdminToken: React.FC = () => {
           </Tag>
         );
       },
+    },
+    {
+      title: '时间限制',
+      key: 'timeRestriction',
+      width: 180,
+      render: (_, record) => {
+        const hasTimeRange = record.allowedStartTime && record.allowedEndTime;
+        const hasWeekdays = record.allowedWeekdays;
+        
+        if (!hasTimeRange && !hasWeekdays) {
+          return <Text type="secondary">无限制</Text>;
+        }
+
+        const weekdayNames = hasWeekdays
+          ? record.allowedWeekdays!.split(',').map((d) => WEEKDAY_NAMES[d.trim()] || d).join('、')
+          : null;
+
+        return (
+          <Tooltip
+            title={
+              <div>
+                {hasTimeRange && (
+                  <div>时段：{record.allowedStartTime} - {record.allowedEndTime}</div>
+                )}
+                {weekdayNames && <div>星期：{weekdayNames}</div>}
+              </div>
+            }
+          >
+            <Space direction="vertical" size={0}>
+              {hasTimeRange && (
+                <Tag icon={<ClockCircleOutlined />} color="processing">
+                  {record.allowedStartTime} - {record.allowedEndTime}
+                </Tag>
+              )}
+              {weekdayNames && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {weekdayNames.length > 12 ? weekdayNames.substring(0, 12) + '...' : weekdayNames}
+                </Text>
+              )}
+            </Space>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: '备注',
+      dataIndex: 'remark',
+      key: 'remark',
+      width: 150,
+      ellipsis: true,
+      render: (remark: string) => 
+        remark ? (
+          <Tooltip title={remark}>
+            <Text>{remark}</Text>
+          </Tooltip>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
     },
     {
       title: '操作',

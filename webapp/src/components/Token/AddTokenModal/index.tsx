@@ -8,11 +8,28 @@ import {
   Typography,
   Space,
   Alert,
+  TimePicker,
+  Checkbox,
+  Divider,
+  Collapse,
 } from 'antd';
-import { KeyOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { KeyOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { createToken, getCommandList } from '@/services/httprun';
+import dayjs from 'dayjs';
 
 const { Text, Paragraph } = Typography;
+const { Panel } = Collapse;
+
+// 星期几选项
+const WEEKDAY_OPTIONS = [
+  { label: '周一', value: 1 },
+  { label: '周二', value: 2 },
+  { label: '周三', value: 3 },
+  { label: '周四', value: 4 },
+  { label: '周五', value: 5 },
+  { label: '周六', value: 6 },
+  { label: '周日', value: 7 },
+];
 
 export interface AddTokenModalProps {
   open: boolean;
@@ -52,13 +69,27 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
       .then(() => {
         setLoading(true);
         const value = form.getFieldsValue();
+        
         // 构造符合后端 CreateTokenRequest 的请求
         const req: HTTPRUN.CreateTokenRequest = {
           name: value.name,
           commands: value.subject || [],
           isAdmin: value.isAdmin || false,
           expiresIn: value.expiresIn || 24,
+          remark: value.remark,
         };
+
+        // 处理时间范围限制
+        if (value.allowedTimeRange && value.allowedTimeRange.length === 2) {
+          req.allowedStartTime = value.allowedTimeRange[0].format('HH:mm');
+          req.allowedEndTime = value.allowedTimeRange[1].format('HH:mm');
+        }
+
+        // 处理允许的星期几
+        if (value.allowedWeekdays && value.allowedWeekdays.length > 0) {
+          req.allowedWeekdays = value.allowedWeekdays;
+        }
+
         createToken(req)
           .then((res) => {
             setLoading(false);
@@ -87,6 +118,16 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
     }
   };
 
+  // 快速选择工作日
+  const handleSelectWorkdays = () => {
+    form.setFieldValue('allowedWeekdays', [1, 2, 3, 4, 5]);
+  };
+
+  // 快速选择所有天
+  const handleSelectAllDays = () => {
+    form.setFieldValue('allowedWeekdays', [1, 2, 3, 4, 5, 6, 7]);
+  };
+
   return (
     <Modal
       title={
@@ -105,7 +146,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
         icon: createdToken ? <CheckCircleOutlined /> : undefined,
       }}
       cancelButtonProps={{ style: createdToken ? { display: 'none' } : {} }}
-      width={550}
+      width={600}
     >
       {createdToken ? (
         <div style={{ padding: '16px 0' }}>
@@ -197,6 +238,75 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
               <Select.Option value={2160}>90 天</Select.Option>
               <Select.Option value={8760}>1 年</Select.Option>
             </Select>
+          </Form.Item>
+
+          <Divider style={{ margin: '16px 0' }} />
+          
+          <Collapse 
+            ghost 
+            defaultActiveKey={[]}
+            style={{ marginBottom: 16 }}
+          >
+            <Panel 
+              header={
+                <Space>
+                  <ClockCircleOutlined />
+                  <span>时间范围限制（可选）</span>
+                </Space>
+              } 
+              key="timeRestriction"
+            >
+              <Form.Item
+                label="允许时段"
+                name="allowedTimeRange"
+                tooltip="设置每天允许执行命令的时间段，留空表示不限制"
+                labelCol={{ span: 5 }}
+                wrapperCol={{ span: 19 }}
+              >
+                <TimePicker.RangePicker
+                  format="HH:mm"
+                  placeholder={['开始时间', '结束时间']}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+              <Form.Item
+                label="允许星期"
+                name="allowedWeekdays"
+                tooltip="设置允许执行命令的星期几，不选则不限制"
+                labelCol={{ span: 5 }}
+                wrapperCol={{ span: 19 }}
+              >
+                <Checkbox.Group options={WEEKDAY_OPTIONS} />
+              </Form.Item>
+              <Form.Item
+                wrapperCol={{ offset: 5, span: 19 }}
+              >
+                <Space>
+                  <a onClick={handleSelectWorkdays}>选择工作日</a>
+                  <a onClick={handleSelectAllDays}>选择全部</a>
+                </Space>
+              </Form.Item>
+              <Alert
+                message="时间限制说明"
+                description="设置时间限制后，Token 仅在指定的时间段和星期内有效。例如：设置 09:00-18:00 和周一到周五，则该 Token 只能在工作日的工作时间内使用。"
+                type="info"
+                showIcon
+                style={{ marginBottom: 8 }}
+              />
+            </Panel>
+          </Collapse>
+
+          <Form.Item
+            label="备注"
+            name="remark"
+            tooltip="可选的备注信息"
+          >
+            <Input.TextArea 
+              placeholder="请输入备注信息（可选）" 
+              rows={2}
+              maxLength={500}
+              showCount
+            />
           </Form.Item>
         </Form>
       )}
