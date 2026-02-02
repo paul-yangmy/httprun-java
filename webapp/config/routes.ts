@@ -6,6 +6,10 @@
 export default [
   {
     path: '/',
+    redirect: '/command',
+  },
+  {
+    path: '/command',
     name: '命令列表',
     icon: 'thunderbolt',
     component: './Command/UserList',
@@ -26,6 +30,7 @@ export default [
     path: '/admin',
     name: '管理',
     icon: 'crown',
+    access: 'canAdmin',
     routes: [
       {
         path: '/admin',

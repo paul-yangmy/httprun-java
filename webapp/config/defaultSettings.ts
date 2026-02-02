@@ -18,6 +18,10 @@ const Settings: ProLayoutProps & {
   pwa: false,
   iconfontUrl: '',
   token: {},
+  // 响应式配置
+  breakpoint: 'md' as any,
+  siderWidth: 208,
+  collapsedWidth: 48,
 };
 
 export default Settings;

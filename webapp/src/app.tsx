@@ -4,7 +4,7 @@ import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
 import React, { useEffect, useState } from 'react';
 import { Button, Tooltip, ConfigProvider, theme as antdTheme } from 'antd';
 import { Footer } from '@/components';
-import { validToken } from '@/services/httprun';
+import { validToken, getCurrentUser } from '@/services/httprun';
 import defaultSettings from '../config/defaultSettings';
 import { errorConfig } from './requestErrorConfig';
 import TokenSetting from '@/components/Token/Setting';
@@ -34,26 +34,50 @@ const setStoredTheme = (mode: 'light' | 'dark') => {
 export async function getInitialState(): Promise<{
   settings?: Partial<LayoutSettings>;
   themeMode?: 'light' | 'dark';
+  currentUser?: HTTPRUN.CurrentUser;
 }> {
   const themeMode = getStoredTheme();
+  
+  // 尝试获取当前用户信息
+  let currentUser: HTTPRUN.CurrentUser | undefined;
+  try {
+    currentUser = await getCurrentUser();
+  } catch (error) {
+    // Token 无效或未设置，用户信息为空
+    currentUser = undefined;
+  }
+  
   return {
     settings: {
       ...defaultSettings,
       navTheme: themeMode === 'dark' ? 'realDark' : 'light',
     } as Partial<LayoutSettings>,
     themeMode,
+    currentUser,
   };
 }
 
 // Token 验证包装组件
-const TokenWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const TokenWrapper: React.FC<{ 
+  children: React.ReactNode;
+  onUserChange?: (user: HTTPRUN.CurrentUser | undefined) => void;
+}> = ({ children, onUserChange }) => {
   const [showTokenSetting, setShowTokenSetting] = useState(false);
   
   useEffect(() => {
-    validToken().catch(() => {
-      setShowTokenSetting(true);
-    });
-  }, []);
+    validToken()
+      .then(() => {
+        // Token 有效，尝试获取用户信息
+        return getCurrentUser();
+      })
+      .then((user) => {
+        onUserChange?.(user);
+      })
+      .catch(() => {
+        setShowTokenSetting(true);
+        onUserChange?.(undefined);
+      });
+  }, [onUserChange]);
 
   return (
     <>
@@ -124,7 +148,16 @@ export const layout: RunTimeLayoutConfig = ({ initialState, setInitialState }) =
             algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
           }}
         >
-          <TokenWrapper>{children}</TokenWrapper>
+          <TokenWrapper
+            onUserChange={(user) => {
+              setInitialState((prev) => ({
+                ...prev,
+                currentUser: user,
+              }));
+            }}
+          >
+            {children}
+          </TokenWrapper>
         </ConfigProvider>
       );
     },
