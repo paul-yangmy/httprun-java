@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Form,
   Modal,
-  Inpu(,
+  Input,
   Typography,
   Button,
   Select,
