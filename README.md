@@ -6,8 +6,9 @@
 
 - **命令管理**: 创建、更新、删除和查询命令配置
 - **安全执行**: 基于 Token 的 API 访问控制
-- **参数模板**: 支持 `{{.variable}}` 模板语法的命令参数
-- **多执行模式**: 支持本地执行和 SSH 远程执行
+- **参数模板**: 支持 `{{.varia,le}}` 模板语法的命令参数
+- **多执行模式**: 支持本地执行和 SSH 远程执行,
+- **实时输出**: WebSocket 实时推送命令执,输出
 - **审计日志**: 完整的命令执行日志记录
 - **审批流程**: 高风险命令需要审批后执行
 - **IP 白名单**: 支持 IP 访问限制
@@ -19,6 +20,7 @@
 - **Java 17** - LTS 版本
 - **Spring Boot 3.2.x** - 应用框架
 - **Spring Security 6.x** - 安全框架
+- **Spring WebSocket** - 实时通信
 - **Spring Data JPA** - 数据访问层
 - **MySQL 8.0** - 数据库
 - **Redis** - 缓存 (可选)
@@ -53,6 +55,7 @@ src/main/java/com/httprun/
 ├── security/                    # 安全模块
 ├── exception/                   # 异常处理
 ├── aspect/                      # AOP 切面
+├── websocket/                   # WebSocket 实时通信
 └── util/                        # 工具类
 ```
 
@@ -64,9 +67,12 @@ src/main/java/com/httprun/
 - Maven 3.8+
 - MySQL 8.0+ (生产环境)
 - Redis 7+ (可选)
+- Node.js 18+ (前端开发)
 - Docker & Docker Compose (容器化部署)
 
 ### 本地开发
+
+#### 后端启动
 
 1. **克隆项目**
 ```bash
@@ -74,19 +80,55 @@ git clone <repository-url>
 cd httprun-java
 ```
 
-2. **使用开发模式启动** (H2 内存数据库)
+2. **构建项目**
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+mvn clean package -DskipTests
 ```
 
-3. **访问 API 文档**
-```
-http://localhost:8080/swagger-ui.html
+3. **使用开发模式启动**（SQLite 数据库，自动生成管理员 Token）
+```bash
+java -jar target/httprun-java-1.0.0.jar --httprun.init-admin-token=true
 ```
 
-4. **访问 H2 控制台** (开发模式)
+4. **保存控制台输出的管理员 Token**
 ```
-http://localhost:8080/h2-console
+========================================
+管理员 Token 生成成功!
+========================================
+Token ID:     1
+Token Name:   admin
+JWT Token:
+----------------------------------------
+eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiIq...
+----------------------------------------
+请保存此 Token，后续将无法再次查看完整内容!
+========================================
+```
+
+5. **访问服务**
+- Web 界面: http://localhost:8081/admin
+- API 文档: http://localhost:8081/swagger-ui.html
+
+#### 前端开发
+
+1. **进入前端目录**
+```bash
+cd webapp
+```
+
+2. **安装依赖**
+```bash
+npm install
+```
+
+3. **启动开发服务器**
+```bash
+npm start
+```
+
+4. **构建生产版本**
+```bash
+npm run build
 ```
 
 ### Docker 部署
