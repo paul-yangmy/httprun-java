@@ -96,6 +96,14 @@ declare namespace HTTPRUN {
     name: string;
     isAdmin: boolean;
     revoked: boolean;
+    /** 允许执行的开始时间（格式：HH:mm） */
+    allowedStartTime?: string;
+    /** 允许执行的结束时间（格式：HH:mm） */
+    allowedEndTime?: string;
+    /** 允许执行的星期几（逗号分隔，如 "1,2,3,4,5"） */
+    allowedWeekdays?: string;
+    /** 备注信息 */
+    remark?: string;
     createdAt: string;
     updatedAt: string;
   };
@@ -109,6 +117,12 @@ declare namespace HTTPRUN {
     commands?: string[];
     isAdmin?: boolean;
     expiresIn?: number;
+    /** 允许执行的开始时间（格式：HH:mm） */
+    allowedStartTime?: string;
+    /** 允许执行的结束时间（格式：HH:mm） */
+    allowedEndTime?: string;
+    /** 允许执行的星期几（1=周一, ..., 7=周日） */
+    allowedWeekdays?: number[];
     remark?: string;
   };
 
