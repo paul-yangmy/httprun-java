@@ -24,9 +24,9 @@ public class HealthController {
                 "timestamp", LocalDateTime.now().toString()));
     }
 
-    @GetMapping("/")
-    @Operation(summary = "首页")
-    public ResponseEntity<Map<String, String>> index() {
+    @GetMapping("/api/info")
+    @Operation(summary = "应用信息")
+    public ResponseEntity<Map<String, String>> info() {
         return ResponseEntity.ok(Map.of(
                 "name", "HttpRun",
                 "version", "1.0.0",

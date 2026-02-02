@@ -55,6 +55,17 @@ public class UserController {
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
+    @GetMapping("/user")
+    @Operation(summary = "获取当前用户信息", description = "获取当前登录用户的基本信息，包括用户名和管理员权限")
+    @ApiResponse(responseCode = "200", description = "用户信息获取成功")
+    public ResponseEntity<Map<String, Object>> getCurrentUser(
+            @AuthenticationPrincipal JwtUserPrincipal principal) {
+        return ResponseEntity.ok(Map.of(
+                "name", principal.name(),
+                "isAdmin", principal.admin(),
+                "token", principal.subject()));
+    }
+
     @PostMapping("/**")
     @Operation(summary = "执行命令", description = "执行指定的命令。命令名称从 URL 路径中获取，参数通过请求体传递。" +
             "系统会验证用户权限、参数安全性，并记录执行日志")
