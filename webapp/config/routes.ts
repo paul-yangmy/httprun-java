@@ -11,6 +11,18 @@ export default [
     component: './Command/UserList',
   },
   {
+    path: '/history',
+    name: '执行历史',
+    icon: 'history',
+    component: './Command/History',
+  },
+  {
+    path: '/favorites',
+    name: '我的收藏',
+    icon: 'star',
+    component: './Command/Favorites',
+  },
+  {
     path: '/admin',
     name: '管理',
     icon: 'crown',
