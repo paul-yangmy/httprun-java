@@ -39,6 +39,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 公开端点
                         .requestMatchers("/api/health", "/swagger/**", "/v3/api-docs/**").permitAll()
+                        // WebSocket 端点 - 认证由 WebSocket 拦截器处理
+                        .requestMatchers("/ws/**").permitAll()
                         // 静态资源 - 前端所有资源
                         .requestMatchers("/", "/index.html", "/favicon.ico").permitAll()
                         .requestMatchers("/*.js", "/*.css", "/*.json", "/*.svg", "/*.png", "/*.ico").permitAll()
