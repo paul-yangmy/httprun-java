@@ -22,6 +22,23 @@ declare namespace HTTPRUN {
     value: string;
   };
 
+  /** 远程执行配置（SSH 模式） */
+  type RemoteConfig = {
+    /** 主机地址，默认 localhost 表示本机 */
+    host?: string;
+    /** SSH 端口，默认 22 */
+    port?: number;
+    /** SSH 用户名 */
+    username?: string;
+    /** SSH 密码（与 privateKey 二选一） */
+    password?: string;
+    /** SSH 私钥（与 password 二选一） */
+    privateKey?: string;
+  };
+
+  /** 执行模式 */
+  type ExecutionMode = 'LOCAL' | 'SSH' | 'AGENT';
+
   /** 命令配置 */
   type CommandConfig = {
     command: string;
@@ -42,6 +59,10 @@ declare namespace HTTPRUN {
     name: string;
     status: CommandStatus;
     description: string;
+    /** 执行模式 */
+    executionMode?: ExecutionMode;
+    /** 远程执行配置 */
+    remoteConfig?: RemoteConfig;
     created_at: string;
     updated_at: string;
   };
