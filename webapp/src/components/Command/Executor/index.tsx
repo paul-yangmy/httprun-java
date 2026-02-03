@@ -311,6 +311,35 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
   const hasParams = cfg.params && cfg.params.length > 0;
   const hasEnv = cfg.env && cfg.env.length > 0;
 
+  // 使用 useWatch 监听所有表单字段的变化
+  const formValues = Form.useWatch([], form);
+
+  // 实时生成预览命令
+  const previewCommand = useMemo(() => {
+    const values = formValues || {};
+    let cmd = cfg.command || '';
+
+    // 替换参数占位符
+    cfg.params?.forEach((param) => {
+      const placeholder = `{{.${param.name}}}`;
+      let value = values[param.name];
+
+      // 处理不同类型的值
+      if (value === undefined || value === null || value === '') {
+        value = param.defaultValue !== undefined ? param.defaultValue : `<${param.name}>`;
+      }
+      
+      if (typeof value === 'boolean') {
+        value = value ? 'true' : 'false';
+      }
+
+      // 替换所有出现的占位符
+      cmd = cmd.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value));
+    });
+
+    return cmd;
+  }, [cfg, formValues]);
+
   // 渲染流式输出
   const renderStreamOutput = () => {
     if (streamLines.length === 0 && !streamError && !streamComplete && !running) {
@@ -484,6 +513,33 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
           </Space>
         </Card>
 
+        {/* 命令预览 */}
+        {cfg.command && (
+          <Alert
+            message={
+              <Space direction="vertical" style={{ width: '100%' }} size="small">
+                <div>
+                  <Text strong>实际执行命令预览</Text>
+                  <Tooltip title="随着参数配置自动更新">
+                    <Text type="secondary" style={{ marginLeft: 8, fontSize: '12px' }}>
+                      (实时预览)
+                    </Text>
+                  </Tooltip>
+                </div>
+                <div className={styles.commandPreview}>
+                  <pre className={styles.commandPreviewCode}>
+                    <code>{previewCommand}</code>
+                  </pre>
+                </div>
+              </Space>
+            }
+            type="info"
+            showIcon
+            icon={<CodeOutlined />}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
         {/* 执行模式切换 */}
         <div className={styles.streamMode}>
           <Space>
@@ -513,7 +569,11 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
                 </Space>
               ),
               children: (
-                <Form form={form} initialValues={initialValues} layout="vertical">
+                <Form 
+                  form={form} 
+                  initialValues={initialValues} 
+                  layout="vertical"
+                >
                   {hasParams ? (
                     <div className={styles.paramList}>
                       {cfg.params.map((item) => (
