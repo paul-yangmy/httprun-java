@@ -1,6 +1,7 @@
 package com.httprun.dto.request;
 
 import com.httprun.entity.CommandConfig;
+import com.httprun.entity.RemoteConfig;
 import com.httprun.enums.ExecutionMode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
@@ -60,4 +61,10 @@ public class CreateCommandRequest {
      * 超时时间（秒）
      */
     private Integer timeoutSeconds;
+
+    /**
+     * 远程执行配置（SSH 模式使用）
+     */
+    @Schema(description = "远程执行配置（SSH 模式使用），包含主机地址、端口、用户名、密码或密钥")
+    private RemoteConfig remoteConfig;
 }

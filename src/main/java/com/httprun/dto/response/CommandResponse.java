@@ -1,6 +1,7 @@
 package com.httprun.dto.response;
 
 import com.httprun.entity.CommandConfig;
+import com.httprun.entity.RemoteConfig;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -24,6 +25,8 @@ public class CommandResponse {
     private CommandConfig commandConfig;
 
     private String executionMode;
+
+    private RemoteConfig remoteConfig;
 
     private String groupName;
 
