@@ -194,6 +194,14 @@ public class CommandServiceImpl implements CommandService {
         response.setTimeoutSeconds(command.getTimeoutSeconds());
         response.setCreatedAt(command.getCreatedAt());
         response.setUpdatedAt(command.getUpdatedAt());
+
+        // 设置危险等级和警告信息
+        int dangerLevel = commandTemplate.detectDangerLevel(command);
+        response.setDangerLevel(dangerLevel);
+        if (dangerLevel > 0) {
+            response.setDangerWarning(commandTemplate.getDangerWarning(command));
+        }
+
         return response;
     }
 

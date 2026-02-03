@@ -3,7 +3,9 @@ package com.httprun.executor;
 import com.httprun.dto.request.RunCommandRequest;
 import com.httprun.entity.Command;
 import com.httprun.entity.ParamDefine;
+import com.httprun.util.CommandSecurityValidator;
 import com.httprun.util.SensitiveDataMasker;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +20,10 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class CommandTemplate {
+
+    private final CommandSecurityValidator securityValidator;
 
     // 匹配 {{.variableName}} 或 {{variableName}} 格式的模板变量（点号可选）
     private static final Pattern TEMPLATE_PATTERN = Pattern.compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
@@ -122,26 +127,36 @@ public class CommandTemplate {
                             "Parameter '" + paramDef.getName() + "' is required");
                 }
             }
-
-            // 验证危险字符（防止命令注入）
-            Object value = providedParams.get(paramDef.getName());
-            if (value != null) {
-                validateParamSecurity(paramDef.getName(), value.toString());
-            }
         }
+
+        // 使用增强的综合安全检查（包含命令注入防护、参数白名单验证、路径遍历防护）
+        // strictMode=true 启用严格模式（参数白名单验证）
+        securityValidator.performFullSecurityCheck(command, providedParams, true);
     }
 
     /**
-     * 参数安全验证（防止命令注入）
+     * 检测命令危险等级
+     * 
+     * @return 0=安全, 1=警告, 2=高危
      */
-    private void validateParamSecurity(String name, String value) {
-        String[] dangerousChars = { ";", "|", "&", "`", "$", "(", ")", "{", "}", "<", ">", "\n", "\r" };
-
-        for (String dangerous : dangerousChars) {
-            if (value.contains(dangerous)) {
-                throw new SecurityException(
-                        "Parameter '" + name + "' contains dangerous character: " + dangerous);
-            }
+    public int detectDangerLevel(Command command) {
+        if (command.getCommandConfig() == null || command.getCommandConfig().getCommand() == null) {
+            return 0;
         }
+        return securityValidator.detectDangerLevel(command.getCommandConfig().getCommand(), null);
+    }
+
+    /**
+     * 获取高危命令警告信息
+     */
+    public String getDangerWarning(Command command) {
+        if (command.getCommandConfig() == null || command.getCommandConfig().getCommand() == null) {
+            return null;
+        }
+        int level = detectDangerLevel(command);
+        if (level > 0) {
+            return securityValidator.getDangerWarning(command.getCommandConfig().getCommand());
+        }
+        return null;
     }
 }
