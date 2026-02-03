@@ -63,6 +63,10 @@ declare namespace HTTPRUN {
     executionMode?: ExecutionMode;
     /** 远程执行配置 */
     remoteConfig?: RemoteConfig;
+    /** 危险等级：0=安全, 1=警告, 2=高危 */
+    dangerLevel?: number;
+    /** 危险警告信息 */
+    dangerWarning?: string;
     created_at: string;
     updated_at: string;
   };

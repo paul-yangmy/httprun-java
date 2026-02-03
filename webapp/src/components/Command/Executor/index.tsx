@@ -27,12 +27,15 @@ import {
   ThunderboltOutlined,
   StopOutlined,
   SyncOutlined,
+  ExclamationCircleOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { runCommand } from '@/services/httprun';
 import { CommandStreamClient } from '@/utils/commandStream';
 import styles from './index.module.less';
 
 const { Text } = Typography;
+const { confirm } = Modal;
 
 export interface CommandExecutorProps {
   open: boolean;
@@ -276,6 +279,49 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
       });
   }, [command]);
 
+  /** 执行命令（带高危确认） */
+  const executeCommand = useCallback((params: Array<{ name: string; value: any }>) => {
+    if (streamMode) {
+      handleStreamRun(params.map(p => ({ name: p.name, value: String(p.value ?? '') })));
+    } else {
+      handleNormalRun(params);
+    }
+  }, [streamMode, handleStreamRun, handleNormalRun]);
+
+  /** 显示高危命令确认弹窗 */
+  const showDangerConfirm = useCallback((params: Array<{ name: string; value: any }>) => {
+    const dangerLevel = command.dangerLevel || 0;
+    const dangerWarning = command.dangerWarning || '此命令被标记为高危操作，请确认后执行！';
+    
+    confirm({
+      title: dangerLevel >= 2 ? '⚠️ 高危命令确认' : '⚡ 危险操作确认',
+      icon: dangerLevel >= 2 ? <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} /> : <WarningOutlined style={{ color: '#faad14' }} />,
+      content: (
+        <div>
+          <Alert 
+            message={dangerWarning}
+            type={dangerLevel >= 2 ? 'error' : 'warning'}
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+          <p>命令名称：<strong>{command.name}</strong></p>
+          <p style={{ color: '#666', fontSize: 12 }}>
+            请确认您了解此操作的影响，执行后可能无法撤销。
+          </p>
+        </div>
+      ),
+      okText: '确认执行',
+      okType: dangerLevel >= 2 ? 'danger' : 'primary',
+      cancelText: '取消',
+      onOk() {
+        executeCommand(params);
+      },
+      onCancel() {
+        message.info('已取消执行');
+      },
+    });
+  }, [command, executeCommand]);
+
   const handleRun = useCallback(() => {
     form.validateFields().then(() => {
       const values = form.getFieldsValue();
@@ -288,15 +334,17 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
         params.push({ name: key, value: val });
       });
 
-      if (streamMode) {
-        handleStreamRun(params.map(p => ({ name: p.name, value: String(p.value ?? '') })));
+      // 检查是否为高危命令，需要二次确认
+      const dangerLevel = command.dangerLevel || 0;
+      if (dangerLevel > 0) {
+        showDangerConfirm(params);
       } else {
-        handleNormalRun(params);
+        executeCommand(params);
       }
     }).catch(() => {
       message.warning('请填写必填参数');
     });
-  }, [form, streamMode, handleStreamRun, handleNormalRun]);
+  }, [form, command, showDangerConfirm, executeCommand]);
 
   const initialValues = useMemo(() => {
     const val: Record<string, string | number | boolean | undefined> = {};
@@ -469,6 +517,13 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
           <PlayCircleOutlined style={{ color: '#1677ff' }} />
           <span>运行命令</span>
           <Tag color="blue">{command.name}</Tag>
+          {/* 高危命令标识 */}
+          {command.dangerLevel && command.dangerLevel >= 2 && (
+            <Tag color="error" icon={<ExclamationCircleOutlined />}>高危</Tag>
+          )}
+          {command.dangerLevel === 1 && (
+            <Tag color="warning" icon={<WarningOutlined />}>警告</Tag>
+          )}
         </Space>
       }
       onCancel={onClose}
@@ -490,6 +545,7 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
           <Button
             key="run"
             type="primary"
+            danger={command.dangerLevel && command.dangerLevel >= 2}
             icon={<PlayCircleOutlined />}
             onClick={handleRun}
             loading={running}
@@ -500,6 +556,18 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
       ]}
     >
       <div className={styles.executor}>
+        {/* 高危命令警告 */}
+        {command.dangerLevel && command.dangerLevel > 0 && (
+          <Alert
+            message={command.dangerLevel >= 2 ? '⚠️ 高危命令' : '⚡ 危险操作'}
+            description={command.dangerWarning || '此命令被标记为危险操作，执行前请确认！'}
+            type={command.dangerLevel >= 2 ? 'error' : 'warning'}
+            showIcon
+            icon={command.dangerLevel >= 2 ? <ExclamationCircleOutlined /> : <WarningOutlined />}
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
         {/* 命令描述 */}
         <Card size="small" className={styles.descCard}>
           <Space direction="vertical" style={{ width: '100%' }}>

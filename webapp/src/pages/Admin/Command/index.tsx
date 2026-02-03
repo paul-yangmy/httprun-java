@@ -19,6 +19,8 @@ import {
   PlusOutlined,
   SearchOutlined,
   ReloadOutlined,
+  ExclamationCircleOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
@@ -83,12 +85,24 @@ const AdminCommand: React.FC = () => {
       title: '命令名称',
       dataIndex: 'name',
       key: 'name',
-      width: 150,
+      width: 180,
       ellipsis: true,
-      render: (name: string) => (
-        <Text strong style={{ color: '#1677ff' }}>
-          {name}
-        </Text>
+      render: (name: string, record) => (
+        <Space>
+          <Text strong style={{ color: '#1677ff' }}>
+            {name}
+          </Text>
+          {record.dangerLevel !== undefined && record.dangerLevel >= 2 && (
+            <Tag color="error" icon={<ExclamationCircleOutlined />}>
+              高危
+            </Tag>
+          )}
+          {record.dangerLevel === 1 && (
+            <Tag color="warning" icon={<WarningOutlined />}>
+              警告
+            </Tag>
+          )}
+        </Space>
       ),
     },
     {
