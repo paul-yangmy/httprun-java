@@ -4,6 +4,7 @@ import com.httprun.dto.request.RunCommandRequest;
 import com.httprun.entity.Command;
 import com.httprun.entity.CommandConfig;
 import com.httprun.entity.ParamDefine;
+import com.httprun.util.CommandSecurityValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +24,7 @@ class CommandTemplateTest {
 
     @BeforeEach
     void setUp() {
-        commandTemplate = new CommandTemplate();
+        commandTemplate = new CommandTemplate(new CommandSecurityValidator());
 
         // 创建命令配置
         commandConfig = new CommandConfig();
