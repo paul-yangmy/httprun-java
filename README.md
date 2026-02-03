@@ -1,5 +1,5 @@
 # HttpRun Java
-一个基于 Spring Boot 的企业级 HTTP API Shell 命令网关系统，支持通过 RESTful API 安全执行预定义的 Shell 命令。
+一个基于[httprun](https://github.com/raojinlin/httprun)项目的改写: 基于Spring Boot 的企业级 HTTP API Shell 命令网关系统，支持通过 RESTful API 安全执行预定义的 Shell 命令。
 
 ## 🚀 功能特性
 
