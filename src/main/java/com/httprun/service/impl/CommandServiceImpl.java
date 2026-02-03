@@ -5,6 +5,7 @@ import com.httprun.dto.request.RunCommandRequest;
 import com.httprun.dto.response.CommandExecutionResult;
 import com.httprun.dto.response.CommandResponse;
 import com.httprun.entity.Command;
+import com.httprun.entity.RemoteConfig;
 import com.httprun.enums.CommandStatus;
 import com.httprun.enums.ExecutionMode;
 import com.httprun.exception.BusinessException;
@@ -14,6 +15,7 @@ import com.httprun.executor.LocalCommandExecutor;
 import com.httprun.executor.SshCommandExecutor;
 import com.httprun.repository.CommandRepository;
 import com.httprun.service.CommandService;
+import com.httprun.util.CryptoUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -37,6 +39,7 @@ public class CommandServiceImpl implements CommandService {
     private final CommandTemplate commandTemplate;
     private final LocalCommandExecutor localExecutor;
     private final SshCommandExecutor sshExecutor;
+    private final CryptoUtils cryptoUtils;
 
     @Override
     @Transactional
@@ -48,6 +51,7 @@ public class CommandServiceImpl implements CommandService {
         command.setDescription(request.getDescription());
         command.setCommandConfig(request.getCommandConfig());
         command.setExecutionMode(request.getExecutionMode() != null ? request.getExecutionMode() : ExecutionMode.LOCAL);
+        command.setRemoteConfig(encryptRemoteConfig(request.getRemoteConfig()));
         command.setGroupName(request.getGroupName());
         command.setTags(request.getTags());
         command.setTimeoutSeconds(request.getTimeoutSeconds() != null ? request.getTimeoutSeconds() : 30);
@@ -75,6 +79,9 @@ public class CommandServiceImpl implements CommandService {
         }
         if (request.getExecutionMode() != null) {
             command.setExecutionMode(request.getExecutionMode());
+        }
+        if (request.getRemoteConfig() != null) {
+            command.setRemoteConfig(encryptRemoteConfig(request.getRemoteConfig()));
         }
         if (request.getGroupName() != null) {
             command.setGroupName(request.getGroupName());
@@ -140,6 +147,12 @@ public class CommandServiceImpl implements CommandService {
         // 6. 选择执行器并执行
         CommandExecutor executor = selectExecutor(command.getExecutionMode());
         int timeout = request.getTimeout() != null ? request.getTimeout() : command.getTimeoutSeconds();
+
+        // 7. 如果是 SSH 模式，且请求中没有 remoteConfig，使用命令配置中的 remoteConfig
+        if (command.getExecutionMode() == ExecutionMode.SSH && request.getRemoteConfig() == null) {
+            request.setRemoteConfig(command.getRemoteConfig());
+        }
+
         return executor.execute(actualCommand, request, timeout);
     }
 
@@ -175,11 +188,62 @@ public class CommandServiceImpl implements CommandService {
         response.setStatus(command.getStatus().name());
         response.setCommandConfig(command.getCommandConfig());
         response.setExecutionMode(command.getExecutionMode().name());
+        response.setRemoteConfig(maskRemoteConfig(command.getRemoteConfig()));
         response.setGroupName(command.getGroupName());
         response.setTags(command.getTags());
         response.setTimeoutSeconds(command.getTimeoutSeconds());
         response.setCreatedAt(command.getCreatedAt());
         response.setUpdatedAt(command.getUpdatedAt());
         return response;
+    }
+
+    /**
+     * 加密远程配置中的敏感信息（密码和私钥）
+     */
+    private RemoteConfig encryptRemoteConfig(RemoteConfig config) {
+        if (config == null) {
+            return null;
+        }
+        RemoteConfig encrypted = new RemoteConfig();
+        encrypted.setHost(config.getHost());
+        encrypted.setPort(config.getPort());
+        encrypted.setUsername(config.getUsername());
+        encrypted.setSshKeyId(config.getSshKeyId());
+        encrypted.setAgentId(config.getAgentId());
+
+        // 加密密码
+        if (config.getPassword() != null && !config.getPassword().isBlank()) {
+            encrypted.setPassword(cryptoUtils.encrypt(config.getPassword()));
+        }
+        // 加密私钥
+        if (config.getPrivateKey() != null && !config.getPrivateKey().isBlank()) {
+            encrypted.setPrivateKey(cryptoUtils.encrypt(config.getPrivateKey()));
+        }
+        return encrypted;
+    }
+
+    /**
+     * 对返回的远程配置进行脱敏（不返回密码和私钥明文）
+     */
+    private RemoteConfig maskRemoteConfig(RemoteConfig config) {
+        if (config == null) {
+            return null;
+        }
+        RemoteConfig masked = new RemoteConfig();
+        masked.setHost(config.getHost());
+        masked.setPort(config.getPort());
+        masked.setUsername(config.getUsername());
+        masked.setSshKeyId(config.getSshKeyId());
+        masked.setAgentId(config.getAgentId());
+
+        // 密码脱敏：有值则显示占位符
+        if (config.getPassword() != null && !config.getPassword().isBlank()) {
+            masked.setPassword("******");
+        }
+        // 私钥脱敏
+        if (config.getPrivateKey() != null && !config.getPrivateKey().isBlank()) {
+            masked.setPrivateKey("******");
+        }
+        return masked;
     }
 }
