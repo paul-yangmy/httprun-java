@@ -5,11 +5,14 @@
 
 - **命令管理**: 创建、更新、删除和查询命令配置
 - **安全执行**: 基于 Token 的 API 访问控制
-- **参数模板**: 支持 `{{.varia,le}}` 模板语法的命令参数
-- **多执行模式**: 支持本地执行和 SSH 远程执行,
+- **参数模板**: 支持 `{{.variable}}` 模板语法的命令参数
+- **多执行模式**: 支持本地执行和 SSH 远程执行
+  - 本地执行：在服务器本地运行 Shell 命令
+  - SSH 远程执行：通过 SSH 在远程服务器执行命令（支持免密登录和密码认证）
+- **SSH 认证方式**: 三级认证机制，优先级为指定私钥 > 系统默认密钥 > 密码认证
+- **凭证加密**: 采用 AES-GCM 256 位加密存储 SSH 密码和私钥
 - **实时输出**: WebSocket 实时推送命令执行输出
 - **审计日志**: 完整的命令执行日志记录
-- **审批流程**: 高风险命令需要审批后执行
 - **IP 白名单**: 支持 IP 访问限制
 - **速率限制**: 防止 API 滥用
 - **健康检查**: 内置健康检查接口
@@ -28,7 +31,7 @@
 - **OpenAPI 3.0** - API 文档
 - **Docker** - 容器化部署
 
-## 📁 项目结构
+### 项目结构
 
 ```
 src/main/java/com/httprun/
@@ -51,11 +54,14 @@ src/main/java/com/httprun/
 ├── entity/                      # 实体类
 ├── dto/                         # 数据传输对象
 ├── executor/                    # 命令执行器
+│   ├── LocalCommandExecutor.java    # 本地命令执行
+│   └── SshCommandExecutor.java      # SSH 远程命令执行
 ├── security/                    # 安全模块
 ├── exception/                   # 异常处理
 ├── aspect/                      # AOP 切面
 ├── websocket/                   # WebSocket 实时通信
 └── util/                        # 工具类
+    └── CryptoUtils.java         # AES-GCM 加密工具
 ```
 
 ## 🚀 快速开始
@@ -191,16 +197,55 @@ curl -X POST http://localhost:8080/api/admin/tokens \
     "rateLimit": 100,
     "expiresIn": 86400000
   }'
+**创建带有 SSH 远程执行的命令:**
+```bash
+curl -X POST http://localhost:8080/api/admin/commands \
+  -H "Authorization: Bearer <jwt_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "remote-echo",
+    "description": "在远程服务器执行 echo 命令",
+    "commandTemplate": "echo Hello from {{.host}}",
+    "executionMode": "SSH",
+    "remoteConfig": {
+      "host": "192.168.1.100",
+      "port": 22,
+      "username": "root",
+      "privateKey": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+    },
+    "paramsConfig": [
+      {"name": "host", "type": "string", "required": true}
+    ],
+    "timeout": 30000
+  }'
 ```
+
+### SSH 密码和私钥处理
+
+- **敏感信息加密**: 所有 SSH 密码和私钥都使用 AES-GCM 256 位加密存储在数据库
+- **自动解密**: 执行命令时自动识别和解密加密的认证信息
+- **API 脱敏**: 返回给前端的数据中，密码和私钥字段会被脱敏为 "******"
 
 ### 执行命令 (使用 API Token)
 
+**本地执行:**
 ```bash
 curl -X POST http://localhost:8080/api/run/hello \
   -H "Authorization: Bearer <api_token>" \
   -H "Content-Type: application/json" \
   -d '{
     "params": {"name": "World"},
+    "async": false
+  }'
+```
+
+**远程 SSH 执行:**
+```bash
+curl -X POST http://localhost:8080/api/run/remote-echo \
+  -H "Authorization: Bearer <api_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "params": {"host": "192.168.1.100"},
     "async": false
   }'
 ```
@@ -222,14 +267,29 @@ curl -X POST http://localhost:8080/api/run/hello \
 | `JWT_SECRET` | JWT 密钥 | - |
 | `JWT_EXPIRATION` | JWT 过期时间(ms) | `3600000` |
 | `COMMAND_TIMEOUT` | 命令默认超时(ms) | `30000` |
+| `HTTPRUN_CRYPTO_SECRET_KEY` | SSH 认证信息加密密钥 | 系统自动生成 |
+
+### SSH 认证配置
+
+**优先级：**
+1. **指定私钥** - 如果 `remoteConfig.privateKey` 不为空，优先使用此密钥
+2. **系统默认密钥** - 自动查找 `~/.ssh/id_rsa`、`~/.ssh/id_ed25519` 等默认密钥（免密登录）
+3. **密码认证** - 如果前两者都失败，使用 `remoteConfig.password` 进行密码认证
+
+**私钥格式：**
+- 支持 RSA、ECDSA、EdDSA 格式的 OpenSSH 格式私钥
+- 可通过前端 Monaco Editor 编辑或粘贴
+- 敏感信息自动加密存储
 
 ## 🔒 安全说明
 
 1. **生产环境必须修改 JWT_SECRET**
-2. **建议配置 HTTPS**
-3. **配置 IP 白名单限制访问**
-4. **定期轮换 API Token**
-5. **高危命令启用审批流程**
+2. **SSH 密钥和密码自动使用 AES-GCM 加密存储**
+3. **建议配置 HTTPS**
+4. **配置 IP 白名单限制访问**
+5. **定期轮换 API Token**
+6. **不要在日志中输出未脱敏的 SSH 凭证**
+7. **SSH 私钥推荐使用无密码密钥或使用 SSH Agent**
 
 ## 📊 监控
 

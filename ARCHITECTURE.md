@@ -16,7 +16,9 @@ HttpRun 是一款面向企业的安全 Shell 命令网关，支持通过 RESTful
 - Spring Boot 3.2.x / Spring Security 6.x / Spring Data JPA / Hibernate 6.x
 - MySQL 8.0+ / Redis 7.x
 - JWT (jjwt) / OpenAPI (SpringDoc)
+- JSch（SSH 远程执行）/ Bouncycastle（密钥处理）
 - Flyway / Caffeine / Lombok / MapStruct
+- AES-GCM 256位（敏感信息加密）
 - Micrometer + Prometheus + Grafana（监控）
 - Logback（结构化日志）
 
@@ -43,9 +45,12 @@ httprun-java/
 │   │   │   ├── service/     # 业务服务与实现
 │   │   │   ├── repository/  # JPA 数据访问
 │   │   │   ├── entity/      # 实体类（Command/Token/AccessLog/...）
-│   │   │   ├── executor/    # 命令执行引擎（本地/SSH/模板/安全）
+│   │   │   ├── executor/    # 命令执行引擎（本地/SSH/模板/安全/凭证加密）
 │   │   │   ├── security/    # JWT、权限、IP白名单等安全模块
 │   │   │   ├── aspect/      # 日志、权限、审计切面
+│   │   │   ├── exception/   # 异常处理
+│   │   │   ├── enums/       # 枚举
+│   │   │   ├── util/        # 工具类（CryptoUtils 加密/解密）
 │   │   │   ├── exception/   # 全局异常
 │   │   │   └── enums/       # 枚举
 │   │   └── resources/
@@ -97,6 +102,14 @@ sequenceDiagram
 ### 3. 命令执行引擎
 
 - 支持本地（ProcessBuilder）、SSH（JSch）、Agent（预留）三种模式
+- **SSH 认证机制（三级优先级）：**
+  1. 指定私钥（remoteConfig.privateKey，AES-GCM 解密）
+  2. 系统默认 SSH 密钥（~/.ssh/id_rsa、id_ed25519 等，免密登录）
+  3. 密码认证（remoteConfig.password，AES-GCM 解密）
+- **SSH 凭证安全：**
+  - 数据库存储密码和私钥时自动使用 AES-GCM 256位加密（ENC: 前缀标识）
+  - 执行前自动识别和解密加密的凭证
+  - API 返回时自动脱敏为 "****** "（6个星号）
 - 命令模板渲染（{{.var}}）、参数安全校验、超时/并发/沙箱隔离
 - 并发控制（Semaphore）、队列满异常、执行超时强杀
 
@@ -1069,6 +1082,169 @@ public class SshCommandExecutor implements CommandExecutor {
     @Override
     public boolean isAvailable() {
         return true;
+    }
+}
+```
+
+---
+
+### 3.3 SSH 凭证加密工具（CryptoUtils）
+
+```java
+package com.httprun.util;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.SecureRandom;
+import java.util.Base64;
+
+/**
+ * AES-GCM 256位加密工具
+ * 
+ * 用途：
+ * - 加密 SSH 密码和私钥，保护敏感信息存储在数据库
+ * - 自动识别加密标志（ENC: 前缀），执行时自动解密
+ * - API 返回时自动脱敏敏感字段
+ * 
+ * 密钥管理：
+ * - 从 application.properties 读取：httprun.crypto.secret-key
+ * - 默认 32 字节密钥，支持自定义环境变量覆盖
+ * 
+ * 加密格式：
+ * - ENC: + Base64(IV(16字节) + 密文)
+ * - GCM 模式确保数据完整性和认证
+ */
+@Slf4j
+public class CryptoUtils {
+    
+    private static final String ALGORITHM = "AES";
+    private static final String CIPHER = "AES/GCM/NoPadding";
+    private static final int KEY_SIZE = 256;
+    private static final int GCM_TAG_LENGTH = 128;
+    private static final int IV_LENGTH = 16;
+    private static final String ENC_PREFIX = "ENC:";
+    
+    private final SecretKey secretKey;
+    
+    public CryptoUtils(String secretKeyStr) {
+        byte[] decodedKey = Base64.getDecoder().decode(secretKeyStr);
+        this.secretKey = new SecretKeySpec(decodedKey, 0, decodedKey.length, ALGORITHM);
+    }
+    
+    /**
+     * 加密敏感数据
+     * @return ENC: 前缀 + Base64 加密数据
+     */
+    public String encrypt(String plaintext) {
+        try {
+            Cipher cipher = Cipher.getInstance(CIPHER);
+            byte[] iv = new byte[IV_LENGTH];
+            new SecureRandom().nextBytes(iv);
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
+            
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec);
+            byte[] ciphertext = cipher.doFinal(plaintext.getBytes());
+            
+            // IV + 密文合并后 Base64 编码
+            byte[] encrypted = new byte[IV_LENGTH + ciphertext.length];
+            System.arraycopy(iv, 0, encrypted, 0, IV_LENGTH);
+            System.arraycopy(ciphertext, 0, encrypted, IV_LENGTH, ciphertext.length);
+            
+            return ENC_PREFIX + Base64.getEncoder().encodeToString(encrypted);
+        } catch (Exception e) {
+            throw new RuntimeException("Encryption failed", e);
+        }
+    }
+    
+    /**
+     * 解密敏感数据
+     * @param ciphertext 带 ENC: 前缀的加密数据
+     * @return 原始明文
+     */
+    public String decrypt(String ciphertext) {
+        try {
+            if (!ciphertext.startsWith(ENC_PREFIX)) {
+                return ciphertext;  // 未加密数据，直接返回
+            }
+            
+            String encData = ciphertext.substring(ENC_PREFIX.length());
+            byte[] encrypted = Base64.getDecoder().decode(encData);
+            
+            byte[] iv = new byte[IV_LENGTH];
+            System.arraycopy(encrypted, 0, iv, 0, IV_LENGTH);
+            
+            Cipher cipher = Cipher.getInstance(CIPHER);
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
+            
+            byte[] plaintext = cipher.doFinal(encrypted, IV_LENGTH, encrypted.length - IV_LENGTH);
+            return new String(plaintext);
+        } catch (Exception e) {
+            throw new RuntimeException("Decryption failed", e);
+        }
+    }
+    
+    /**
+     * 判断数据是否已加密
+     */
+    public boolean isEncrypted(String data) {
+        return data != null && data.startsWith(ENC_PREFIX);
+    }
+}
+```
+
+**使用示例（SshCommandExecutor）：**
+
+```java
+// 在 execute() 执行前，解密 SSH 凭证
+if (remoteConfig.getPrivateKey() != null && cryptoUtils.isEncrypted(remoteConfig.getPrivateKey())) {
+    String decryptedKey = cryptoUtils.decrypt(remoteConfig.getPrivateKey());
+    jsch.addIdentity("key", decryptedKey.getBytes(), null, null);
+    log.debug("SSH private key decrypted for execution");
+} else {
+    jsch.addIdentity("key", remoteConfig.getPrivateKey().getBytes(), null, null);
+}
+
+// 密码认证
+if (remoteConfig.getPassword() != null && cryptoUtils.isEncrypted(remoteConfig.getPassword())) {
+    String decryptedPassword = cryptoUtils.decrypt(remoteConfig.getPassword());
+    session.setPassword(decryptedPassword);
+} else {
+    session.setPassword(remoteConfig.getPassword());
+}
+```
+
+**使用示例（CommandServiceImpl）：**
+
+```java
+// 创建/更新命令时自动加密
+public void encryptRemoteConfig(Command command) {
+    if (command.getRemoteConfig() == null) return;
+    RemoteConfig config = command.getRemoteConfig();
+    
+    if (config.getPassword() != null && !cryptoUtils.isEncrypted(config.getPassword())) {
+        config.setPassword(cryptoUtils.encrypt(config.getPassword()));
+    }
+    
+    if (config.getPrivateKey() != null && !cryptoUtils.isEncrypted(config.getPrivateKey())) {
+        config.setPrivateKey(cryptoUtils.encrypt(config.getPrivateKey()));
+    }
+}
+
+// 返回给前端时自动脱敏
+public void maskRemoteConfig(CommandResponse response) {
+    if (response.getRemoteConfig() == null) return;
+    RemoteConfig config = response.getRemoteConfig();
+    
+    if (config.getPassword() != null) {
+        config.setPassword("******");
+    }
+    
+    if (config.getPrivateKey() != null) {
+        config.setPrivateKey("******");
     }
 }
 ```
