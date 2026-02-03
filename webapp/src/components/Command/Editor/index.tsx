@@ -16,6 +16,7 @@ import {
   Tabs,
   Empty,
   Tooltip,
+  InputNumber,
 } from 'antd';
 import {
   CloseOutlined,
@@ -23,6 +24,7 @@ import {
   CodeOutlined,
   SettingOutlined,
   EditOutlined,
+  CloudServerOutlined,
 } from '@ant-design/icons';
 import { createCommand, updateCommand } from '@/services/httprun';
 import styles from './index.module.less';
@@ -42,6 +44,12 @@ const getCommandConfig = (cmd: HTTPRUN.CommandItem | null | undefined): HTTPRUN.
   return cmd.commandConfig || cmd.command || { command: '', params: [], env: [] };
 };
 
+/** 获取远程配置，默认为本机 */
+const getRemoteConfig = (cmd: HTTPRUN.CommandItem | null | undefined): HTTPRUN.RemoteConfig => {
+  if (!cmd || !cmd.remoteConfig) return { host: 'localhost', port: 22 };
+  return cmd.remoteConfig;
+};
+
 const CommandEditor: React.FC<CommandEditorProps> = ({
   open,
   onClose,
@@ -49,24 +57,38 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
   onChange,
 }) => {
   const [value, setValue] = useState<HTTPRUN.CommandItem>(
-    (command as HTTPRUN.CommandItem) || { commandConfig: { command: '', params: [], env: [] } },
+    (command as HTTPRUN.CommandItem) || { commandConfig: { command: '', params: [], env: [] }, remoteConfig: { host: 'localhost', port: 22 } },
   );
   const [form] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
+  const [executionMode, setExecutionMode] = useState<HTTPRUN.ExecutionMode>('LOCAL');
 
   useEffect(() => {
     setValue(
-      (command as HTTPRUN.CommandItem) || { commandConfig: { command: '', params: [], env: [] } },
+      (command as HTTPRUN.CommandItem) || { commandConfig: { command: '', params: [], env: [] }, remoteConfig: { host: 'localhost', port: 22 } },
     );
     if (command && 'name' in command) {
       const cfg = getCommandConfig(command as HTTPRUN.CommandItem);
+      const remote = getRemoteConfig(command as HTTPRUN.CommandItem);
+      const mode = (command as HTTPRUN.CommandItem).executionMode || 'LOCAL';
+      setExecutionMode(mode);
       form.setFieldsValue({
         name: command.name,
         description: command.description,
         command: cfg.command,
+        host: remote.host || 'localhost',
+        port: remote.port || 22,
+        username: remote.username || '',
+        password: remote.password || '',
+        privateKey: remote.privateKey || '',
       });
     } else {
       form.resetFields();
+      setExecutionMode('LOCAL');
+      form.setFieldsValue({
+        host: 'localhost',
+        port: 22,
+      });
     }
   }, [command, form]);
 
@@ -165,16 +187,36 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
         const cfg = getCommandConfig(value);
         cfg.command = val.command;
         
+        // 构建远程配置
+        const remoteConfig: HTTPRUN.RemoteConfig = {
+          host: val.host || 'localhost',
+          port: val.port || 22,
+          username: val.username || '',
+          password: val.password || '',
+          privateKey: val.privateKey || '',
+        };
+        
+        // 根据 host 判断执行模式
+        const isRemote = remoteConfig.host && 
+          remoteConfig.host !== 'localhost' && 
+          remoteConfig.host !== '127.0.0.1';
+        
         // 构建请求对象，使用 commandConfig 字段
         const req: any = {
           name: val.name,
           description: val.description,
           commandConfig: cfg,
+          executionMode: isRemote ? 'SSH' : 'LOCAL',
+          remoteConfig: isRemote ? remoteConfig : undefined,
           status: 0,
           path: `/api/run/${val.name}`,
         };
         
-        createCommand(req)
+        const apiCall = isEdit 
+          ? updateCommand(val.name, req)
+          : createCommand(req);
+        
+        apiCall
           .then(() => {
             message.success(isEdit ? '更新成功！' : '创建成功！');
             setLoading(false);
@@ -240,6 +282,17 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
               <Input placeholder="如：部署应用到生产环境" />
             </Form.Item>
           </div>
+          
+          {/* 主机配置 */}
+          <Form.Item
+            label="执行主机"
+            name="host"
+            tooltip="命令执行的目标主机，localhost 或 127.0.0.1 表示本机，其他值表示通过 SSH 远程执行"
+            initialValue="localhost"
+          >
+            <Input placeholder="localhost（本机）或远程服务器 IP/域名" />
+          </Form.Item>
+          
           <Form.Item
             label="命令内容"
             name="command"
@@ -453,6 +506,61 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                   >
                     添加环境变量
                   </Button>
+                </div>
+              ),
+            },
+            {
+              key: 'ssh',
+              label: (
+                <Space>
+                  <CloudServerOutlined />
+                  <span>SSH 配置</span>
+                </Space>
+              ),
+              children: (
+                <div className={styles.sshSection}>
+                  <Card size="small" style={{ marginBottom: 16, background: '#f6ffed', border: '1px solid #b7eb8f' }}>
+                    <Text type="secondary">
+                      <strong>免密登录模式：</strong>只需填写用户名，系统会自动使用本机 ~/.ssh/id_rsa 等默认密钥进行认证
+                    </Text>
+                  </Card>
+                  <div className={styles.formGrid}>
+                    <Form.Item
+                      label="SSH 端口"
+                      name="port"
+                      initialValue={22}
+                    >
+                      <InputNumber min={1} max={65535} placeholder="22" style={{ width: '100%' }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="用户名"
+                      name="username"
+                      rules={[{ required: false }]}
+                      tooltip="SSH 登录用户名，免密登录时必填"
+                    >
+                      <Input placeholder="root" />
+                    </Form.Item>
+                  </div>
+                  <Divider style={{ margin: '12px 0' }}>密码认证（可选）</Divider>
+                  <Form.Item
+                    label="密码"
+                    name="password"
+                    tooltip="密码将加密存储，仅在未配置免密登录时使用"
+                  >
+                    <Input.Password placeholder="SSH 密码（无免密登录时填写）" />
+                  </Form.Item>
+                  <Divider style={{ margin: '12px 0' }}>私钥认证（可选）</Divider>
+                  <Form.Item
+                    label="私钥"
+                    name="privateKey"
+                    tooltip="自定义私钥内容，优先级高于系统默认密钥和密码"
+                  >
+                    <Input.TextArea
+                      rows={4}
+                      placeholder="粘贴私钥内容（可选，系统会优先尝试使用本机默认密钥）"
+                      style={{ fontFamily: 'monospace', fontSize: 12 }}
+                    />
+                  </Form.Item>
                 </div>
               ),
             },
