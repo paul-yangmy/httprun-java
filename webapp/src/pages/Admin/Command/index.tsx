@@ -127,6 +127,24 @@ const AdminCommand: React.FC = () => {
       },
     },
     {
+      title: '执行位置',
+      key: 'executionMode',
+      width: 100,
+      align: 'center',
+      responsive: ['md'] as any,
+      render: (_, record) => {
+        const isRemote = record.executionMode === 'SSH';
+        const host = record.remoteConfig?.host || 'localhost';
+        return (
+          <Tooltip title={isRemote ? `SSH: ${host}` : '本机执行'}>
+            <Tag color={isRemote ? 'orange' : 'green'}>
+              {isRemote ? 'SSH' : '本机'}
+            </Tag>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
