@@ -1,8 +1,8 @@
 import { CodeOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons';
 import type { Settings as LayoutSettings } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import React, { useEffect, useState } from 'react';
-import { Button, Tooltip, ConfigProvider, theme as antdTheme } from 'antd';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Button, Tooltip, ConfigProvider, theme as antdTheme, Spin } from 'antd';
 import { Footer } from '@/components';
 import { validToken, getCurrentUser } from '@/services/httprun';
 import defaultSettings from '../config/defaultSettings';
@@ -63,28 +63,101 @@ const TokenWrapper: React.FC<{
   onUserChange?: (user: HTTPRUN.CurrentUser | undefined) => void;
 }> = ({ children, onUserChange }) => {
   const [showTokenSetting, setShowTokenSetting] = useState(false);
+  const [isValidating, setIsValidating] = useState(true);
+  const [isTokenValid, setIsTokenValid] = useState(false);
   
-  useEffect(() => {
-    validToken()
-      .then(() => {
-        // Token 有效，尝试获取用户信息
-        return getCurrentUser();
-      })
-      .then((user) => {
-        onUserChange?.(user);
-      })
-      .catch(() => {
-        setShowTokenSetting(true);
-        onUserChange?.(undefined);
-      });
+  const validateAndFetchUser = useCallback(async () => {
+    setIsValidating(true);
+    try {
+      await validToken();
+      // Token 有效，获取用户信息
+      const user = await getCurrentUser();
+      onUserChange?.(user);
+      setIsTokenValid(true);
+    } catch {
+      // Token 无效或未设置
+      setShowTokenSetting(true);
+      onUserChange?.(undefined);
+      setIsTokenValid(false);
+    } finally {
+      setIsValidating(false);
+    }
   }, [onUserChange]);
+
+  useEffect(() => {
+    validateAndFetchUser();
+  }, [validateAndFetchUser]);
+
+  const handleTokenSet = useCallback(async () => {
+    // Token 设置后重新验证
+    setShowTokenSetting(false);
+    await validateAndFetchUser();
+  }, [validateAndFetchUser]);
+
+  // 显示 Token 设置对话框时，同时显示一个友好的等待界面
+  if (isValidating && !isTokenValid) {
+    return (
+      <>
+        <TokenSetting
+          open={showTokenSetting}
+          onOpenChange={setShowTokenSetting}
+          onOk={handleTokenSet}
+        />
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          flexDirection: 'column',
+          gap: 16
+        }}>
+          <Spin size="large" />
+          <span style={{ color: '#666' }}>正在验证身份...</span>
+        </div>
+      </>
+    );
+  }
+
+  // Token 无效时显示设置对话框和提示
+  if (!isTokenValid && !isValidating) {
+    return (
+      <>
+        <TokenSetting
+          open={showTokenSetting}
+          onOpenChange={(open) => {
+            // 如果 Token 无效，不允许关闭对话框
+            if (!open && !isTokenValid) {
+              return;
+            }
+            setShowTokenSetting(open);
+          }}
+          onOk={handleTokenSet}
+        />
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          flexDirection: 'column',
+          gap: 16
+        }}>
+          <CodeOutlined style={{ fontSize: 64, color: '#1677ff' }} />
+          <h2 style={{ margin: 0 }}>HttpRun</h2>
+          <p style={{ color: '#666', margin: 0 }}>请先设置 Token 以访问系统</p>
+          <Button type="primary" onClick={() => setShowTokenSetting(true)}>
+            设置 Token
+          </Button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <TokenSetting
         open={showTokenSetting}
         onOpenChange={setShowTokenSetting}
-        onOk={() => window.location.reload()}
+        onOk={handleTokenSet}
       />
       {children}
     </>
