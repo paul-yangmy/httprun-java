@@ -296,12 +296,41 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
           <Form.Item
             label="命令内容"
             name="command"
-            rules={[{ required: true, message: '请输入命令内容' }]}
-            tooltip="要执行的 Shell 命令，支持参数替换"
+            rules={[
+              { required: true, message: '请输入命令内容' },
+              {
+                validator: (_, value) => {
+                  if (!value) return Promise.resolve();
+                  // 先移除 \ 续行符（反斜杠+换行+可选空白），避免误判
+                  // 这允许使用 \ 进行换行续行（Shell 语法）
+                  const valueForCheck = value.replace(/\\\r?\n\s*/g, ' ');
+                  
+                  // 检测多命令连接符
+                  const multiCommandPatterns = [
+                    { pattern: /&&/, desc: '&& (命令连接符)' },
+                    { pattern: /\|\|/, desc: '|| (条件执行符)' },
+                    { pattern: /;(?![^{}]*})/, desc: '; (命令分隔符)' },
+                    { pattern: /(?<!\|)\|(?!\|)/, desc: '| (管道符)' },
+                    { pattern: /[\r\n]/, desc: '换行符（请使用 \\ 续行）' },
+                    { pattern: /&(?!&)\s*$/, desc: '& (后台执行符)' },
+                    { pattern: /&(?!&)\s+\S/, desc: '& (后台执行后跟命令)' },
+                  ];
+                  for (const { pattern, desc } of multiCommandPatterns) {
+                    if (pattern.test(valueForCheck)) {
+                      return Promise.reject(
+                        new Error(`禁止使用多命令连接符: ${desc}。如需执行多条命令，请使用 Shell 脚本封装`)
+                      );
+                    }
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
+            tooltip="要执行的单条 Shell 命令，支持参数替换和 \\ 换行续行。禁止使用 &&、||、; 等多命令连接符"
           >
             <Input.TextArea
               rows={4}
-              placeholder="如：docker deploy {{.app_name}} --env {{.env}}"
+              placeholder={'如：docker run \\\n  -d \\\n  --name {{.app_name}} \\\n  -p {{.port}}:8080 \\\n  {{.image}}'}
               style={{ fontFamily: 'monospace' }}
             />
           </Form.Item>

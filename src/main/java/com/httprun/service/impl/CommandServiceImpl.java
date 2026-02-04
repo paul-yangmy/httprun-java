@@ -15,6 +15,7 @@ import com.httprun.executor.LocalCommandExecutor;
 import com.httprun.executor.SshCommandExecutor;
 import com.httprun.repository.CommandRepository;
 import com.httprun.service.CommandService;
+import com.httprun.util.CommandSecurityValidator;
 import com.httprun.util.CryptoUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,11 +41,17 @@ public class CommandServiceImpl implements CommandService {
     private final LocalCommandExecutor localExecutor;
     private final SshCommandExecutor sshExecutor;
     private final CryptoUtils cryptoUtils;
+    private final CommandSecurityValidator securityValidator;
 
     @Override
     @Transactional
     @CacheEvict(value = "commands", allEntries = true)
     public CommandResponse createCommand(CreateCommandRequest request) {
+        // 验证命令模板，禁止多命令
+        if (request.getCommandConfig() != null && request.getCommandConfig().getCommand() != null) {
+            securityValidator.validateCommandTemplate(request.getCommandConfig().getCommand());
+        }
+
         Command command = new Command();
         command.setName(request.getName());
         command.setPath(request.getPath());
@@ -64,6 +71,11 @@ public class CommandServiceImpl implements CommandService {
     @Transactional
     @CacheEvict(value = "commands", allEntries = true)
     public CommandResponse updateCommand(String name, CreateCommandRequest request) {
+        // 验证命令模板，禁止多命令
+        if (request.getCommandConfig() != null && request.getCommandConfig().getCommand() != null) {
+            securityValidator.validateCommandTemplate(request.getCommandConfig().getCommand());
+        }
+
         Command command = commandRepository.findByName(name)
                 .orElseThrow(() -> new BusinessException("Command not found: " + name));
 
