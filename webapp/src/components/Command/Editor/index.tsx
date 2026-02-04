@@ -296,8 +296,33 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
           <Form.Item
             label="命令内容"
             name="command"
-            rules={[{ required: true, message: '请输入命令内容' }]}
-            tooltip="要执行的 Shell 命令，支持参数替换"
+            rules={[
+              { required: true, message: '请输入命令内容' },
+              {
+                validator: (_, value) => {
+                  if (!value) return Promise.resolve();
+                  // 检测多命令连接符
+                  const multiCommandPatterns = [
+                    { pattern: /&&/, desc: '&& (命令连接符)' },
+                    { pattern: /\|\|/, desc: '|| (条件执行符)' },
+                    { pattern: /;(?![^{}]*})/, desc: '; (命令分隔符)' },
+                    { pattern: /(?<!\|)\|(?!\|)/, desc: '| (管道符)' },
+                    { pattern: /[\r\n]/, desc: '换行符' },
+                    { pattern: /&(?!&)\s*$/, desc: '& (后台执行符)' },
+                    { pattern: /&(?!&)\s+\S/, desc: '& (后台执行后跟命令)' },
+                  ];
+                  for (const { pattern, desc } of multiCommandPatterns) {
+                    if (pattern.test(value)) {
+                      return Promise.reject(
+                        new Error(`禁止使用多命令连接符: ${desc}。如需执行多条命令，请使用 Shell 脚本封装`)
+                      );
+                    }
+                  }
+                  return Promise.resolve();
+                },
+              },
+            ]}
+            tooltip="要执行的单条 Shell 命令，支持参数替换。禁止使用 &&、||、; 等多命令连接符"
           >
             <Input.TextArea
               rows={4}

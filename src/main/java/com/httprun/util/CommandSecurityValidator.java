@@ -355,6 +355,84 @@ public class CommandSecurityValidator {
         }
     }
 
+    // ===== 命令模板验证（禁止多命令） =====
+
+    /**
+     * 多命令连接符模式（在命令模板中禁止使用）
+     * 注意：这些模式用于检测命令模板本身，而非参数值
+     */
+    private static final List<Pattern> MULTI_COMMAND_PATTERNS = Arrays.asList(
+            // 命令连接符
+            Pattern.compile("&&"), // cmd1 && cmd2
+            Pattern.compile("\\|\\|"), // cmd1 || cmd2
+            Pattern.compile(";(?![^{}]*})"), // cmd1; cmd2 (排除 ${var} 中的分号)
+
+            // 管道符（单独一个 | 但不是 ||）
+            Pattern.compile("(?<!\\|)\\|(?!\\|)"), // cmd1 | cmd2
+
+            // 换行注入
+            Pattern.compile("\\r?\\n"), // newline
+            Pattern.compile("%0[aAdD]"), // URL encoded newline
+
+            // 后台执行
+            Pattern.compile("&(?!&)\\s*$"), // cmd & (末尾的后台执行符)
+            Pattern.compile("&(?!&)\\s+\\S") // cmd & cmd2 (后台执行后跟新命令)
+    );
+
+    /**
+     * 验证命令模板是否包含多命令
+     * 此方法用于在创建/更新命令时检查命令模板，禁止配置多条命令
+     * 
+     * @param commandTemplate 命令模板字符串
+     * @throws SecurityException 如果检测到多命令模式
+     */
+    public void validateCommandTemplate(String commandTemplate) {
+        if (commandTemplate == null || commandTemplate.trim().isEmpty()) {
+            throw new SecurityException("命令模板不能为空");
+        }
+
+        String template = commandTemplate.trim();
+
+        // 检查多命令模式
+        for (Pattern pattern : MULTI_COMMAND_PATTERNS) {
+            if (pattern.matcher(template).find()) {
+                String patternDesc = getMultiCommandPatternDescription(pattern.pattern());
+                log.warn("Security: Multi-command pattern detected in template: {}, pattern: {}",
+                        maskValue(template), pattern.pattern());
+                throw new SecurityException(
+                        String.format("命令模板包含禁止的多命令连接符: %s。如需执行多条命令，请使用 Shell 脚本封装", patternDesc));
+            }
+        }
+
+        // 检查命令替换（可能用于注入多命令）
+        if (template.contains("$(") || template.contains("`")) {
+            // 允许在命令模板中使用命令替换，但记录警告
+            log.info("Command template contains command substitution: {}", maskValue(template));
+        }
+
+        log.debug("Command template passed multi-command validation");
+    }
+
+    /**
+     * 获取多命令模式的描述
+     */
+    private String getMultiCommandPatternDescription(String pattern) {
+        if (pattern.contains("&&")) {
+            return "&& (命令连接符)";
+        } else if (pattern.contains("\\|\\|")) {
+            return "|| (条件执行符)";
+        } else if (pattern.contains(";")) {
+            return "; (命令分隔符)";
+        } else if (pattern.contains("\\|")) {
+            return "| (管道符)";
+        } else if (pattern.contains("\\n") || pattern.contains("%0")) {
+            return "换行符";
+        } else if (pattern.contains("&")) {
+            return "& (后台执行符)";
+        }
+        return pattern;
+    }
+
     /**
      * 检测命令是否为高危命令
      * 
