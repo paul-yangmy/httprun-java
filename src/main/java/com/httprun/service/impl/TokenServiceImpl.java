@@ -1,6 +1,7 @@
 package com.httprun.service.impl;
 
 import com.httprun.dto.request.CreateTokenRequest;
+import com.httprun.dto.response.RevokeTokenResponse;
 import com.httprun.entity.Token;
 import com.httprun.exception.BusinessException;
 import com.httprun.enums.ErrorCode;
@@ -169,14 +170,80 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     @Transactional
-    public void revokeToken(Long id) {
+    public RevokeTokenResponse revokeToken(Long id) {
         Token token = tokenRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_NOT_FOUND));
 
+        boolean wasAdmin = Boolean.TRUE.equals(token.getIsAdmin());
+        
+        // 撤销当前 Token
         token.setRevoked(true);
         tokenRepository.save(token);
 
-        log.info("Revoked token: id={}, name={}", token.getId(), token.getName());
+        log.info("Revoked token: id={}, name={}, wasAdmin={}", token.getId(), token.getName(), wasAdmin);
+
+        // 如果撤销的是管理员 Token，自动生成新的管理员 Token
+        if (wasAdmin) {
+            log.warn("Admin token revoked, generating new admin token automatically");
+            
+            // 构建新的管理员 Token 请求
+            CreateTokenRequest adminRequest = new CreateTokenRequest();
+            adminRequest.setName("admin");
+            adminRequest.setCommands(null); // 管理员拥有所有命令权限
+            adminRequest.setIsAdmin(true);
+            adminRequest.setExpiresIn(0); // 默认 1 年
+            adminRequest.setRemark("系统自动生成的管理员 Token（原管理员 Token 被撤销）");
+            adminRequest.setAllowedStartTime(null);
+            adminRequest.setAllowedEndTime(null);
+            adminRequest.setAllowedWeekdays(null);
+
+            // 创建新的管理员 Token（跳过唯一性检查，因为旧的已经撤销）
+            Token newAdminToken = createAdminTokenInternal(adminRequest);
+            
+            log.info("New admin token generated: id={}, name={}", newAdminToken.getId(), newAdminToken.getName());
+            
+            return RevokeTokenResponse.adminRevoke(
+                    newAdminToken.getId(),
+                    newAdminToken.getName(),
+                    newAdminToken.getJwtToken()
+            );
+        }
+
+        return RevokeTokenResponse.normalRevoke();
+    }
+
+    /**
+     * 内部方法：创建管理员 Token（跳过唯一性检查）
+     * 仅在撤销管理员 Token 后自动生成新 Token 时使用
+     */
+    private Token createAdminTokenInternal(CreateTokenRequest request) {
+        long now = Instant.now().getEpochSecond();
+        int expiresIn = request.getExpiresIn() != null ? request.getExpiresIn() : 24;
+        Long expiresAt;
+        if (expiresIn == -1) {
+            expiresAt = null;
+        } else if (expiresIn <= 0) {
+            expiresAt = now + 365L * 24 * 60 * 60;
+        } else {
+            expiresAt = now + (long) expiresIn * 60 * 60;
+        }
+
+        String subject = "*"; // 管理员拥有所有权限
+        boolean isAdmin = true;
+
+        String jwtToken = jwtTokenProvider.generateToken(subject, request.getName(), isAdmin, expiresAt);
+
+        Token token = new Token();
+        token.setName(request.getName());
+        token.setSubject(subject);
+        token.setIsAdmin(isAdmin);
+        token.setIssuedAt(now);
+        token.setExpiresAt(expiresAt);
+        token.setJwtToken(jwtToken);
+        token.setRevoked(false);
+        token.setRemark(request.getRemark());
+
+        return tokenRepository.save(token);
     }
 
     @Override

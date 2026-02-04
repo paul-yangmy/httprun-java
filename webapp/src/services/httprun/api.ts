@@ -146,7 +146,7 @@ export async function deleteToken(
   id: number,
   options?: { [key: string]: any },
 ) {
-  return request<{ id: number }>(`/api/admin/token/${id}`, {
+  return request<HTTPRUN.RevokeTokenResponse>(`/api/admin/token/${id}`, {
     method: 'DELETE',
     headers: getTokenHeader(),
     ...(options || {}),

@@ -12,6 +12,8 @@ import {
   Empty,
   Badge,
   message,
+  Modal,
+  Alert,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -20,10 +22,14 @@ import {
   ReloadOutlined,
   KeyOutlined,
   ClockCircleOutlined,
+  ExclamationCircleOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
 import dayjs from 'dayjs';
+
+const { Text } = Typography;
 import { getTokenList, deleteToken } from '@/services/httprun';
 import AddTokenModal from '@/components/Token/AddTokenModal';
 
@@ -46,6 +52,10 @@ const AdminToken: React.FC = () => {
   const [page, setPage] = useState({ pageIndex: 1, pageSize: 10 });
   const [showAddTokenModal, setShowAddTokenModal] = useState(false);
   const [searchText, setSearchText] = useState<string>('');
+  const [newAdminTokenModal, setNewAdminTokenModal] = useState<{
+    visible: boolean;
+    token?: HTTPRUN.RevokeTokenResponse;
+  }>({ visible: false });
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -66,11 +76,42 @@ const AdminToken: React.FC = () => {
   }, [refresh]);
 
   const handleDelete = useCallback(
+    (id: number, isAdmin: boolean) => {
+      // 管理员 Token 删除需要二次确认
+      if (isAdmin) {
+        Modal.confirm({
+          title: '确认删除管理员 Token？',
+          icon: <ExclamationCircleOutlined />,
+          content: (
+            <div>
+              <p>删除管理员 Token 后，系统将<strong>自动生成新的管理员 Token</strong>。</p>
+              <p style={{ color: '#ff4d4f' }}>请确保在关闭弹窗前保存新 Token！</p>
+            </div>
+          ),
+          okText: '确认删除',
+          okType: 'danger',
+          cancelText: '取消',
+          onOk: () => performDelete(id),
+        });
+      } else {
+        performDelete(id);
+      }
+    },
+    [],
+  );
+
+  const performDelete = useCallback(
     (id: number) => {
       message.loading({ content: '正在删除...', key: 'delete' });
       deleteToken(id)
-        .then(() => {
-          message.success({ content: '删除成功', key: 'delete' });
+        .then((response) => {
+          if (response.newAdminTokenGenerated) {
+            // 管理员 Token 被删除，显示新 Token 弹窗
+            message.success({ content: '管理员 Token 已删除，请保存新 Token！', key: 'delete' });
+            setNewAdminTokenModal({ visible: true, token: response });
+          } else {
+            message.success({ content: '删除成功', key: 'delete' });
+          }
           refresh();
         })
         .catch(() => {
@@ -79,6 +120,13 @@ const AdminToken: React.FC = () => {
     },
     [refresh],
   );
+
+  const handleCopyNewToken = useCallback(() => {
+    if (newAdminTokenModal.token?.newJwtToken) {
+      navigator.clipboard.writeText(newAdminTokenModal.token.newJwtToken);
+      message.success('新管理员 Token 已复制到剪贴板');
+    }
+  }, [newAdminTokenModal.token]);
 
   const isExpired = (expiresAt: number | null) => {
     if (expiresAt === null || expiresAt === undefined) {
@@ -289,7 +337,7 @@ const AdminToken: React.FC = () => {
                 key: 'delete',
                 danger: true,
                 icon: <DeleteOutlined />,
-                onClick: () => handleDelete(record.id),
+                onClick: () => handleDelete(record.id, record.isAdmin),
               },
             ],
           }}
@@ -304,6 +352,62 @@ const AdminToken: React.FC = () => {
 
   return (
     <PageContainer>
+      {/* 新管理员 Token 弹窗 */}
+      <Modal
+        title={
+          <Space>
+            <ExclamationCircleOutlined style={{ color: '#faad14' }} />
+            <span>新管理员 Token 已生成</span>
+          </Space>
+        }
+        open={newAdminTokenModal.visible}
+        onCancel={() => setNewAdminTokenModal({ visible: false })}
+        footer={[
+          <Button key="copy" type="primary" icon={<CopyOutlined />} onClick={handleCopyNewToken}>
+            复制 Token
+          </Button>,
+          <Button key="close" onClick={() => setNewAdminTokenModal({ visible: false })}>
+            我已保存，关闭
+          </Button>,
+        ]}
+        width={700}
+        closable={false}
+        maskClosable={false}
+      >
+        <Alert
+          message="请立即保存新的管理员 Token！"
+          description="关闭此弹窗后将无法再次查看完整 Token 内容。"
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary">Token ID：</Text>
+          <Text strong>{newAdminTokenModal.token?.newTokenId}</Text>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary">Token 名称：</Text>
+          <Text strong>{newAdminTokenModal.token?.newTokenName}</Text>
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <Text type="secondary">JWT Token：</Text>
+        </div>
+        <div
+          style={{
+            background: '#f5f5f5',
+            padding: 12,
+            borderRadius: 6,
+            wordBreak: 'break-all',
+            fontFamily: 'monospace',
+            fontSize: 12,
+            maxHeight: 200,
+            overflow: 'auto',
+          }}
+        >
+          {newAdminTokenModal.token?.newJwtToken}
+        </div>
+      </Modal>
+
       <AddTokenModal
         open={showAddTokenModal}
         onOpenChange={setShowAddTokenModal}

@@ -1,6 +1,7 @@
 package com.httprun.service;
 
 import com.httprun.dto.request.CreateTokenRequest;
+import com.httprun.dto.response.RevokeTokenResponse;
 import com.httprun.entity.Token;
 import org.springframework.data.domain.Page;
 
@@ -47,8 +48,12 @@ public interface TokenService {
 
     /**
      * 撤销 Token
+     * 如果撤销的是管理员 Token，会自动生成新的管理员 Token
+     * 
+     * @param id Token ID
+     * @return 撤销响应（包含新管理员 Token 信息，如果适用）
      */
-    void revokeToken(Long id);
+    RevokeTokenResponse revokeToken(Long id);
 
     /**
      * 批量删除 Token

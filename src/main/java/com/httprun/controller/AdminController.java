@@ -4,6 +4,7 @@ import com.httprun.dto.request.CreateCommandRequest;
 import com.httprun.dto.request.CreateTokenRequest;
 import com.httprun.dto.request.UpdateCommandRequest;
 import com.httprun.dto.response.CommandResponse;
+import com.httprun.dto.response.RevokeTokenResponse;
 import com.httprun.entity.AccessLog;
 import com.httprun.entity.Command;
 import com.httprun.entity.Token;
@@ -118,15 +119,15 @@ public class AdminController {
         }
 
         @DeleteMapping("/token/{tokenId}")
-        @Operation(summary = "删除/撤销 Token", description = "撤销指定的访问 Token")
+        @Operation(summary = "删除/撤销 Token", description = "撤销指定的访问 Token。如果撤销的是管理员 Token，系统会自动生成新的管理员 Token 并返回")
         @ApiResponses({
-                        @ApiResponse(responseCode = "200", description = "Token 撤销成功"),
+                        @ApiResponse(responseCode = "200", description = "Token 撤销成功", content = @Content(schema = @Schema(implementation = RevokeTokenResponse.class))),
                         @ApiResponse(responseCode = "404", description = "Token 不存在")
         })
-        public ResponseEntity<Void> deleteToken(
+        public ResponseEntity<RevokeTokenResponse> deleteToken(
                         @Parameter(description = "Token ID", example = "1") @PathVariable Long tokenId) {
-                tokenService.revokeToken(tokenId);
-                return ResponseEntity.ok().build();
+                RevokeTokenResponse response = tokenService.revokeToken(tokenId);
+                return ResponseEntity.ok(response);
         }
 
         // ========== 访问日志 ==========

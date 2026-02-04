@@ -154,6 +154,24 @@ declare namespace HTTPRUN {
   /** 创建 Token 响应 - 后端返回完整 Token 对象 */
   type CreateTokenResponse = Token;
 
+  /** 撤销 Token 响应 */
+  type RevokeTokenResponse = {
+    /** 操作是否成功 */
+    success: boolean;
+    /** 提示消息 */
+    message: string;
+    /** 是否生成了新的管理员 Token */
+    newAdminTokenGenerated: boolean;
+    /** 新生成的管理员 Token ID（仅当撤销管理员 Token 时返回） */
+    newTokenId?: number;
+    /** 新生成的管理员 Token 名称 */
+    newTokenName?: string;
+    /** 新生成的 JWT Token（仅当撤销管理员 Token 时返回） */
+    newJwtToken?: string;
+    /** 警告信息 */
+    warning?: string;
+  };
+
   /** 当前用户信息 */
   type CurrentUser = {
     name: string;
