@@ -83,9 +83,9 @@ public class TokenServiceImpl implements TokenService {
     public Token createToken(CreateTokenRequest request) {
         // 计算过期时间（Unix 时间戳，秒）
         long now = Instant.now().getEpochSecond();
-        
+
         boolean isAdmin = request.getIsAdmin() != null && request.getIsAdmin();
-        
+
         // 管理员唯一性检查：如果要创建管理员 Token，检查是否已存在有效的管理员
         if (isAdmin) {
             if (tokenRepository.existsValidAdminToken(now)) {
@@ -93,7 +93,7 @@ public class TokenServiceImpl implements TokenService {
                 throw new BusinessException(ErrorCode.ADMIN_ALREADY_EXISTS);
             }
         }
-        
+
         int expiresIn = request.getExpiresIn() != null ? request.getExpiresIn() : 24;
         Long expiresAt;
         if (expiresIn == -1) {
@@ -175,7 +175,7 @@ public class TokenServiceImpl implements TokenService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOKEN_NOT_FOUND));
 
         boolean wasAdmin = Boolean.TRUE.equals(token.getIsAdmin());
-        
+
         // 撤销当前 Token
         token.setRevoked(true);
         tokenRepository.save(token);
@@ -185,7 +185,7 @@ public class TokenServiceImpl implements TokenService {
         // 如果撤销的是管理员 Token，自动生成新的管理员 Token
         if (wasAdmin) {
             log.warn("Admin token revoked, generating new admin token automatically");
-            
+
             // 构建新的管理员 Token 请求
             CreateTokenRequest adminRequest = new CreateTokenRequest();
             adminRequest.setName("admin");
@@ -199,14 +199,13 @@ public class TokenServiceImpl implements TokenService {
 
             // 创建新的管理员 Token（跳过唯一性检查，因为旧的已经撤销）
             Token newAdminToken = createAdminTokenInternal(adminRequest);
-            
+
             log.info("New admin token generated: id={}, name={}", newAdminToken.getId(), newAdminToken.getName());
-            
+
             return RevokeTokenResponse.adminRevoke(
                     newAdminToken.getId(),
                     newAdminToken.getName(),
-                    newAdminToken.getJwtToken()
-            );
+                    newAdminToken.getJwtToken());
         }
 
         return RevokeTokenResponse.normalRevoke();
