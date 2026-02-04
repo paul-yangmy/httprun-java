@@ -2,6 +2,8 @@ package com.httprun.cli;
 
 import com.httprun.dto.request.CreateTokenRequest;
 import com.httprun.entity.Token;
+import com.httprun.exception.BusinessException;
+import com.httprun.enums.ErrorCode;
 import com.httprun.service.TokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,10 @@ import org.springframework.stereotype.Component;
  * 或在配置文件中设置:
  * httprun:
  * init-admin-token: true
+ * 
+ * 安全限制：
+ * - 如果数据库中已存在有效的管理员 Token，将拒绝创建新的管理员 Token
+ * - 这确保了管理员账号的唯一性，防止重复初始化导致的安全漏洞
  */
 @Slf4j
 @Component
@@ -51,7 +57,7 @@ public class AdminTokenGenerator implements CommandLineRunner {
             request.setAllowedEndTime(null);
             request.setAllowedWeekdays(null);
 
-            // 生成管理员 Token
+            // 生成管理员 Token（TokenService 会检查管理员唯一性）
             Token token = tokenService.createToken(request);
 
             log.info("");
@@ -73,6 +79,19 @@ public class AdminTokenGenerator implements CommandLineRunner {
             log.info("请保存此 Token，后续将无法再次查看完整内容!");
             log.info("========================================");
 
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == ErrorCode.ADMIN_ALREADY_EXISTS) {
+                log.warn("========================================");
+                log.warn("管理员 Token 生成已跳过!");
+                log.warn("========================================");
+                log.warn("原因: 数据库中已存在有效的管理员账号");
+                log.warn("如需重新生成管理员 Token，请先通过 API 撤销现有的管理员 Token");
+                log.warn("========================================");
+                // 不抛出异常，让应用继续正常启动
+                return;
+            }
+            log.error("生成管理员 Token 失败: {}", e.getMessage(), e);
+            throw e;
         } catch (Exception e) {
             log.error("生成管理员 Token 失败: {}", e.getMessage(), e);
             throw e;

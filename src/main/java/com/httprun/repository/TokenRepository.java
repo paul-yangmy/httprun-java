@@ -83,6 +83,18 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
     boolean existsByNameAndRevokedFalse(String name);
 
     /**
+     * 检查是否存在未撤销的管理员 Token
+     */
+    boolean existsByIsAdminTrueAndRevokedFalse();
+
+    /**
+     * 检查是否存在有效的管理员 Token（未撤销且未过期）
+     */
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM Token t " +
+            "WHERE t.isAdmin = true AND t.revoked = false AND (t.expiresAt IS NULL OR t.expiresAt > :now)")
+    boolean existsValidAdminToken(@Param("now") Long now);
+
+    /**
      * 检查 JWT Token 是否有效（未撤销且未过期，永久 token 始终有效）
      */
     @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM Token t " +

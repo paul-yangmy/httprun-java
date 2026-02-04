@@ -33,6 +33,7 @@ public enum ErrorCode {
     // Token 错误 4xxx
     TOKEN_NOT_FOUND(4000, "Token 不存在"),
     TOKEN_CREATION_FAILED(4001, "Token 创建失败"),
+    ADMIN_ALREADY_EXISTS(4002, "管理员账号已存在，禁止重复创建"),
 
     // 执行器错误 5xxx
     EXECUTOR_UNAVAILABLE(5000, "执行器不可用"),

@@ -35,6 +35,15 @@ public class TokenServiceImpl implements TokenService {
     @Override
     @Transactional
     public Token createToken(String name, String subject, boolean isAdmin, int expiresIn) {
+        // 管理员唯一性检查：如果要创建管理员 Token，检查是否已存在有效的管理员
+        if (isAdmin) {
+            long now = Instant.now().getEpochSecond();
+            if (tokenRepository.existsValidAdminToken(now)) {
+                log.warn("试图创建管理员 Token，但已存在有效的管理员 Token");
+                throw new BusinessException(ErrorCode.ADMIN_ALREADY_EXISTS);
+            }
+        }
+
         // 计算过期时间（Unix 时间戳，秒）
         long now = Instant.now().getEpochSecond();
         Long expiresAt;
@@ -73,6 +82,17 @@ public class TokenServiceImpl implements TokenService {
     public Token createToken(CreateTokenRequest request) {
         // 计算过期时间（Unix 时间戳，秒）
         long now = Instant.now().getEpochSecond();
+        
+        boolean isAdmin = request.getIsAdmin() != null && request.getIsAdmin();
+        
+        // 管理员唯一性检查：如果要创建管理员 Token，检查是否已存在有效的管理员
+        if (isAdmin) {
+            if (tokenRepository.existsValidAdminToken(now)) {
+                log.warn("试图创建管理员 Token，但已存在有效的管理员 Token");
+                throw new BusinessException(ErrorCode.ADMIN_ALREADY_EXISTS);
+            }
+        }
+        
         int expiresIn = request.getExpiresIn() != null ? request.getExpiresIn() : 24;
         Long expiresAt;
         if (expiresIn == -1) {
@@ -89,8 +109,6 @@ public class TokenServiceImpl implements TokenService {
         String subject = request.getCommands() != null && !request.getCommands().isEmpty()
                 ? String.join(",", request.getCommands())
                 : "*";
-
-        boolean isAdmin = request.getIsAdmin() != null && request.getIsAdmin();
 
         // 生成 JWT
         String jwtToken = jwtTokenProvider.generateToken(subject, request.getName(), isAdmin, expiresAt);
