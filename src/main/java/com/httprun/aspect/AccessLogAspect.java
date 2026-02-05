@@ -14,17 +14,13 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.lang.reflect.Method;
 import java.util.UUID;
 
 /**
@@ -50,13 +46,19 @@ public class AccessLogAspect {
         long startTime = System.currentTimeMillis();
         HttpServletRequest request = getCurrentRequest();
 
+        String path = request != null ? request.getRequestURI() : "unknown";
+        String method = request != null ? request.getMethod() : "unknown";
+
+        // 判断是否需要记录日志（只记录有意义的操作）
+        if (!shouldLog(method, path)) {
+            return joinPoint.proceed();
+        }
+
         // 生成请求 ID 用于链路追踪
         String requestId = generateRequestId(request);
 
         String tokenId = null;
-        String path = request != null ? request.getRequestURI() : "unknown";
         String ip = request != null ? getClientIp(request) : "unknown";
-        String method = request != null ? request.getMethod() : "unknown";
 
         // 审计增强：获取额外的请求信息
         String userAgent = request != null ? request.getHeader("User-Agent") : null;
@@ -198,49 +200,51 @@ public class AccessLogAspect {
 
     /**
      * 从切入点或路径中提取命令名称
+     * 只有在真正执行命令时才返回命令名，其他 API 调用返回 null
      */
     private String extractCommandName(ProceedingJoinPoint joinPoint, String path) {
-        try {
-            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-            Method method = signature.getMethod();
-
-            // 尝试从注解中获取路径作为命令名
-            if (method.isAnnotationPresent(GetMapping.class)) {
-                String[] values = method.getAnnotation(GetMapping.class).value();
-                if (values.length > 0)
-                    return "GET:" + values[0];
-            }
-            if (method.isAnnotationPresent(PostMapping.class)) {
-                String[] values = method.getAnnotation(PostMapping.class).value();
-                if (values.length > 0)
-                    return "POST:" + values[0];
-            }
-            if (method.isAnnotationPresent(PutMapping.class)) {
-                String[] values = method.getAnnotation(PutMapping.class).value();
-                if (values.length > 0)
-                    return "PUT:" + values[0];
-            }
-            if (method.isAnnotationPresent(DeleteMapping.class)) {
-                String[] values = method.getAnnotation(DeleteMapping.class).value();
-                if (values.length > 0)
-                    return "DELETE:" + values[0];
-            }
-
-            // 回退：使用类名.方法名
-            return joinPoint.getSignature().getDeclaringType().getSimpleName()
-                    + "." + method.getName();
-        } catch (Exception e) {
-            log.debug("Failed to extract command name", e);
-        }
-
-        // 最后回退：从路径中提取
-        if (path != null && path.startsWith("/api/")) {
-            String[] parts = path.split("/");
-            if (parts.length >= 3) {
-                return parts[2]; // 返回 /api/ 后面的部分
+        // 只有 /api/run 才是命令执行，从请求参数中提取命令名
+        if (path != null && path.equals("/api/run")) {
+            try {
+                Object[] args = joinPoint.getArgs();
+                if (args != null) {
+                    for (Object arg : args) {
+                        if (arg instanceof RunCommandRequest runCommandRequest) {
+                            return runCommandRequest.getName();
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Failed to extract command name from request", e);
             }
         }
-        return path;
+
+        // WebSocket 流式执行也是命令执行，但日志由 WebSocket 单独处理
+        // 其他 API 调用不设置 commandName
+        return null;
+    }
+
+    /**
+     * 判断是否需要记录访问日志
+     * 只记录有意义的操作，过滤掉查询类请求
+     */
+    private boolean shouldLog(String method, String path) {
+        // 始终记录命令执行
+        if ("/api/run".equals(path)) {
+            return true;
+        }
+
+        // 记录所有修改类操作（POST、PUT、DELETE、PATCH）
+        if ("POST".equalsIgnoreCase(method) ||
+                "PUT".equalsIgnoreCase(method) ||
+                "DELETE".equalsIgnoreCase(method) ||
+                "PATCH".equalsIgnoreCase(method)) {
+            return true;
+        }
+
+        // 不记录 GET 请求（查询、获取列表等）
+        // 这些请求通常是页面刷新、获取数据，不需要记录
+        return false;
     }
 
     /**
