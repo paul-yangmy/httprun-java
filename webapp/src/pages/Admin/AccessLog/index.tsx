@@ -39,14 +39,15 @@ const sourceConfig: Record<string, { icon: React.ReactNode; color: string; label
 const AdminAccessLog: React.FC = () => {
   const [data, setData] = useState<HTTPRUN.AccessLogListResponse>();
   const [loading, setLoading] = useState<boolean>(false);
-  const [page, setPage] = useState({ pageIndex: 1, pageSize: 10 });
+  const [page, setPage] = useState({ page: 1, pageSize: 10 });
   const [searchText, setSearchText] = useState<string>('');
   const [sourceFilter, setSourceFilter] = useState<string>('');
+  const [logType, setLogType] = useState<'command' | 'all'>('all');
   const [detailModal, setDetailModal] = useState<HTTPRUN.AccessLogItem | null>(null);
 
   const refresh = useCallback(() => {
     setLoading(true);
-    getAccessLogList(page)
+    getAccessLogList({ ...page, type: logType, keyword: searchText || undefined })
       .then((response) => {
         setLoading(false);
         setData(response);
@@ -55,20 +56,16 @@ const AdminAccessLog: React.FC = () => {
         message.error('获取访问日志失败');
         setLoading(false);
       });
-  }, [page]);
+  }, [page, logType, searchText]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  // 过滤数据
-  const filteredData = data?.items?.filter((item) => {
-    const matchSearch = !searchText || 
-      item.path?.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.ip?.toLowerCase().includes(searchText.toLowerCase()) ||
-      item.request_id?.toLowerCase().includes(searchText.toLowerCase());
+  // 过滤数据（仅来源筛选，搜索由后端处理）
+  const filteredData = data?.content?.filter((item) => {
     const matchSource = !sourceFilter || item.source === sourceFilter;
-    return matchSearch && matchSource;
+    return matchSource;
   });
 
   const columns: ColumnsType<HTTPRUN.AccessLogItem> = [
@@ -81,8 +78,8 @@ const AdminAccessLog: React.FC = () => {
     },
     {
       title: '请求 ID',
-      dataIndex: 'request_id',
-      key: 'request_id',
+      dataIndex: 'requestId',
+      key: 'requestId',
       width: 140,
       render: (requestId: string) => (
         <Tooltip title={requestId}>
@@ -107,8 +104,8 @@ const AdminAccessLog: React.FC = () => {
     },
     {
       title: '命令/接口',
-      dataIndex: 'command_name',
-      key: 'command_name',
+      dataIndex: 'commandName',
+      key: 'commandName',
       width: 150,
       ellipsis: true,
       render: (name: string) => (
@@ -138,8 +135,8 @@ const AdminAccessLog: React.FC = () => {
     },
     {
       title: 'Token ID',
-      dataIndex: 'token_id',
-      key: 'token_id',
+      dataIndex: 'tokenId',
+      key: 'tokenId',
       width: 100,
       ellipsis: true,
       render: (tokenId: string) => (
@@ -150,8 +147,8 @@ const AdminAccessLog: React.FC = () => {
     },
     {
       title: '状态',
-      dataIndex: 'status_code',
-      key: 'status_code',
+      dataIndex: 'statusCode',
+      key: 'statusCode',
       width: 80,
       align: 'center',
       render: (code: number) => (
@@ -174,8 +171,8 @@ const AdminAccessLog: React.FC = () => {
     },
     {
       title: '访问时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
       width: 160,
       render: (time: string) => (
         <Text type="secondary" style={{ fontSize: 12 }}>
@@ -208,11 +205,21 @@ const AdminAccessLog: React.FC = () => {
         title={
           <Space>
             <span>访问日志</span>
-            <Tag color="blue">{data?.total || 0} 条</Tag>
+            <Tag color="blue">{data?.totalElements || 0} 条</Tag>
+            {logType === 'command' && <Tag color="green">仅命令执行</Tag>}
           </Space>
         }
         extra={
           <Space>
+            <Select
+              value={logType}
+              onChange={(value) => { setLogType(value); setPage({ ...page, page: 1 }); }}
+              style={{ width: 140 }}
+              options={[
+                { value: 'command', label: '仅命令执行' },
+                { value: 'all', label: '全部请求' },
+              ]}
+            />
             <Select
               placeholder="来源筛选"
               allowClear
@@ -226,16 +233,23 @@ const AdminAccessLog: React.FC = () => {
               ]}
             />
             <Input
-              placeholder="搜索路径/IP/请求ID"
+              placeholder="搜索路径/命令名"
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 200 }}
+              onPressEnter={refresh}
+              style={{ width: 180 }}
               allowClear
             />
-            <Button icon={<ReloadOutlined />} onClick={refresh}>
-              刷新
-            </Button>
+            <Tooltip title="重新加载数据">
+              <Button icon={<ReloadOutlined />} onClick={() => {
+                setData(undefined);
+                refresh();
+                message.success('已刷新数据');
+              }}>
+                刷新
+              </Button>
+            </Tooltip>
           </Space>
         }
         bordered={false}
@@ -248,12 +262,12 @@ const AdminAccessLog: React.FC = () => {
           scroll={{ x: 1400 }}
           pagination={{
             pageSize: page.pageSize,
-            current: page.pageIndex,
-            total: data?.total,
+            current: page.page,
+            total: data?.totalElements,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
-            onChange: (pageIndex, pageSize) => setPage({ pageIndex, pageSize }),
+            onChange: (newPage, pageSize) => setPage({ page: newPage, pageSize }),
           }}
           locale={{
             emptyText: <Empty description="暂无访问日志" />,
@@ -276,7 +290,7 @@ const AdminAccessLog: React.FC = () => {
           <Descriptions column={2} bordered size="small">
             <Descriptions.Item label="ID">{detailModal.id}</Descriptions.Item>
             <Descriptions.Item label="请求 ID">
-              <Text code copyable>{detailModal.request_id || '-'}</Text>
+              <Text code copyable>{detailModal.requestId || '-'}</Text>
             </Descriptions.Item>
             <Descriptions.Item label="来源">
               {(() => {
@@ -285,7 +299,7 @@ const AdminAccessLog: React.FC = () => {
               })()}
             </Descriptions.Item>
             <Descriptions.Item label="命令/接口">
-              <Text code>{detailModal.command_name || '-'}</Text>
+              <Text code>{detailModal.commandName || '-'}</Text>
             </Descriptions.Item>
             <Descriptions.Item label="请求路径" span={2}>
               <Text code copyable>
@@ -296,14 +310,14 @@ const AdminAccessLog: React.FC = () => {
               <Tag color="blue">{detailModal.ip}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="转发 IP">
-              <Text type="secondary">{detailModal.forwarded_for || '-'}</Text>
+              <Text type="secondary">{detailModal.forwardedFor || '-'}</Text>
             </Descriptions.Item>
             <Descriptions.Item label="Token ID" span={2}>
-              <Text copyable>{detailModal.token_id || '-'}</Text>
+              <Text copyable>{detailModal.tokenId || '-'}</Text>
             </Descriptions.Item>
             <Descriptions.Item label="User-Agent" span={2}>
               <Text type="secondary" style={{ fontSize: 12, wordBreak: 'break-all' }}>
-                {detailModal.user_agent || '-'}
+                {detailModal.userAgent || '-'}
               </Text>
             </Descriptions.Item>
             <Descriptions.Item label="来源页面" span={2}>
@@ -312,8 +326,8 @@ const AdminAccessLog: React.FC = () => {
               </Text>
             </Descriptions.Item>
             <Descriptions.Item label="状态码">
-              <Tag color={detailModal.status_code >= 200 && detailModal.status_code < 300 ? 'success' : 'error'}>
-                {detailModal.status_code}
+              <Tag color={detailModal.statusCode >= 200 && detailModal.statusCode < 300 ? 'success' : 'error'}>
+                {detailModal.statusCode}
               </Tag>
             </Descriptions.Item>
             <Descriptions.Item label="耗时">
@@ -352,7 +366,7 @@ const AdminAccessLog: React.FC = () => {
               </pre>
             </Descriptions.Item>
             <Descriptions.Item label="访问时间" span={2}>
-              {dayjs(detailModal.created_at).format('YYYY-MM-DD HH:mm:ss')}
+              {dayjs(detailModal.createdAt).format('YYYY-MM-DD HH:mm:ss')}
             </Descriptions.Item>
           </Descriptions>
         )}

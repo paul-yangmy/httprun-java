@@ -27,9 +27,8 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
+import { history } from '@umijs/max';
 import dayjs from 'dayjs';
-
-const { Text } = Typography;
 import { getTokenList, deleteToken } from '@/services/httprun';
 import AddTokenModal from '@/components/Token/AddTokenModal';
 
@@ -49,17 +48,19 @@ const WEEKDAY_NAMES: Record<string, string> = {
 const AdminToken: React.FC = () => {
   const [tokenList, setTokenList] = useState<HTTPRUN.Token[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [page, setPage] = useState({ pageIndex: 1, pageSize: 10 });
   const [showAddTokenModal, setShowAddTokenModal] = useState(false);
   const [searchText, setSearchText] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [newAdminTokenModal, setNewAdminTokenModal] = useState<{
     visible: boolean;
     token?: HTTPRUN.RevokeTokenResponse;
   }>({ visible: false });
 
+  // 刷新数据（清理缓存并重新加载）
   const refresh = useCallback(() => {
     setLoading(true);
-    getTokenList(page)
+    getTokenList()
       .then((data) => {
         // 后端直接返回数组
         setTokenList(data || []);
@@ -69,7 +70,7 @@ const AdminToken: React.FC = () => {
         message.error('获取 Token 列表失败');
         setLoading(false);
       });
-  }, [page]);
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -105,16 +106,21 @@ const AdminToken: React.FC = () => {
       message.loading({ content: '正在删除...', key: 'delete' });
       deleteToken(id)
         .then((response) => {
-          if (response.newAdminTokenGenerated) {
-            // 管理员 Token 被删除，显示新 Token 弹窗
+          if (response.newAdminTokenGenerated && response.newJwtToken) {
+            // 管理员 Token 被删除，更新 localStorage 中的 Token
+            localStorage.setItem('token', response.newJwtToken);
             message.success({ content: '管理员 Token 已删除，请保存新 Token！', key: 'delete' });
+            // 显示新 Token 弹窗
             setNewAdminTokenModal({ visible: true, token: response });
+            // 使用新 Token 刷新列表
+            refresh();
           } else {
             message.success({ content: '删除成功', key: 'delete' });
+            refresh();
           }
-          refresh();
         })
-        .catch(() => {
+        .catch((error) => {
+          console.error('Delete token error:', error);
           message.error({ content: '删除失败', key: 'delete' });
         });
     },
@@ -127,6 +133,16 @@ const AdminToken: React.FC = () => {
       message.success('新管理员 Token 已复制到剪贴板');
     }
   }, [newAdminTokenModal.token]);
+
+  // 关闭新 Token 弹窗并跳转到首页
+  const handleCloseNewAdminTokenModal = useCallback(() => {
+    setNewAdminTokenModal({ visible: false });
+    // 清除 localStorage 中的 token，强制用户重新输入新 token
+    localStorage.removeItem('token');
+    message.info('请使用新的管理员 Token 重新登录');
+    // 跳转到首页
+    history.push('/');
+  }, []);
 
   const isExpired = (expiresAt: number | null) => {
     if (expiresAt === null || expiresAt === undefined) {
@@ -361,12 +377,9 @@ const AdminToken: React.FC = () => {
           </Space>
         }
         open={newAdminTokenModal.visible}
-        onCancel={() => setNewAdminTokenModal({ visible: false })}
+        onCancel={handleCloseNewAdminTokenModal}
         footer={[
-          <Button key="copy" type="primary" icon={<CopyOutlined />} onClick={handleCopyNewToken}>
-            复制 Token
-          </Button>,
-          <Button key="close" onClick={() => setNewAdminTokenModal({ visible: false })}>
+          <Button key="close" onClick={handleCloseNewAdminTokenModal}>
             我已保存，关闭
           </Button>,
         ]}
@@ -376,7 +389,7 @@ const AdminToken: React.FC = () => {
       >
         <Alert
           message="请立即保存新的管理员 Token！"
-          description="关闭此弹窗后将无法再次查看完整 Token 内容。"
+          description="关闭此弹窗后将无法再次查看完整 Token 内容。请手动复制下方的 JWT Token。"
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
@@ -391,8 +404,21 @@ const AdminToken: React.FC = () => {
         </div>
         <div style={{ marginBottom: 8 }}>
           <Text type="secondary">JWT Token：</Text>
+          <Button
+            type="primary"
+            size="small"
+            icon={<CopyOutlined />}
+            onClick={handleCopyNewToken}
+            style={{ marginLeft: 8 }}
+          >
+            复制
+          </Button>
         </div>
-        <div
+        <Paragraph
+          copyable={{
+            text: newAdminTokenModal.token?.newJwtToken,
+            tooltips: ['点击复制', '已复制！'],
+          }}
           style={{
             background: '#f5f5f5',
             padding: 12,
@@ -402,10 +428,11 @@ const AdminToken: React.FC = () => {
             fontSize: 12,
             maxHeight: 200,
             overflow: 'auto',
+            marginBottom: 0,
           }}
         >
           {newAdminTokenModal.token?.newJwtToken}
-        </div>
+        </Paragraph>
       </Modal>
 
       <AddTokenModal
@@ -451,13 +478,13 @@ const AdminToken: React.FC = () => {
           loading={loading}
           scroll={{ x: 1100 }}
           pagination={{
-            pageSize: page.pageSize,
-            current: page.pageIndex,
+            pageSize: pageSize,
+            current: currentPage,
             total: filteredTokenList.length,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
-            onChange: (pageIndex, pageSize) => setPage({ pageIndex, pageSize }),
+            onChange: (page, size) => { setCurrentPage(page); setPageSize(size); },
             responsive: true,
           }}
           locale={{
