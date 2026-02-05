@@ -141,6 +141,104 @@ public class AccessLogServiceImpl implements AccessLogService {
         return deleted;
     }
 
+    @Override
+    public Page<AccessLog> searchLogs(String tokenId, String commandName, String status,
+            LocalDateTime startTime, LocalDateTime endTime,
+            String keyword, int page, int pageSize) {
+        // 向后兼容，调用新方法，默认不过滤
+        return searchLogs(tokenId, commandName, status, startTime, endTime, keyword, false, page, pageSize);
+    }
+
+    @Override
+    public Page<AccessLog> searchLogs(String tokenId, String commandName, String status,
+            LocalDateTime startTime, LocalDateTime endTime,
+            String keyword, boolean commandOnly, int page, int pageSize) {
+        PageRequest pageRequest = PageRequest.of(
+                Math.max(0, page - 1),
+                pageSize,
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        // 使用 Specification 动态构建查询条件
+        return accessLogRepository.findAll((root, query, cb) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+
+            // 只查询命令执行记录（commandName 不为空）
+            if (commandOnly) {
+                predicates.add(cb.and(
+                        cb.isNotNull(root.get("commandName")),
+                        cb.notEqual(root.get("commandName"), "")));
+            }
+
+            // Token 筛选
+            if (tokenId != null && !tokenId.isEmpty()) {
+                predicates.add(cb.equal(root.get("tokenId"), tokenId));
+            }
+
+            // 命令名称筛选
+            if (commandName != null && !commandName.isEmpty()) {
+                predicates.add(cb.equal(root.get("commandName"), commandName));
+            }
+
+            // 状态筛选
+            if (status != null && !status.isEmpty()) {
+                if ("success".equalsIgnoreCase(status)) {
+                    predicates.add(cb.between(root.get("statusCode"), 200, 299));
+                } else if ("error".equalsIgnoreCase(status)) {
+                    predicates.add(cb.greaterThanOrEqualTo(root.get("statusCode"), 400));
+                }
+            }
+
+            // 时间范围筛选
+            if (startTime != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), startTime));
+            }
+            if (endTime != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), endTime));
+            }
+
+            // 关键词搜索（路径或命令名称）
+            if (keyword != null && !keyword.isEmpty()) {
+                String pattern = "%" + keyword.toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("path")), pattern),
+                        cb.like(cb.lower(root.get("commandName")), pattern)));
+            }
+
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        }, pageRequest);
+    }
+
+    @Override
+    @Transactional
+    public void deleteLog(Long id) {
+        accessLogRepository.deleteById(id);
+        log.info("Deleted access log: id={}", id);
+    }
+
+    @Override
+    @Transactional
+    public int deleteLogs(java.util.List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        accessLogRepository.deleteAllById(ids);
+        log.info("Deleted {} access logs", ids.size());
+        return ids.size();
+    }
+
+    @Override
+    @Transactional
+    public int deleteLogsByToken(String tokenId) {
+        int deleted = accessLogRepository.deleteByTokenId(tokenId);
+        log.info("Deleted {} access logs for token: {}", deleted, tokenId);
+        return deleted;
+    }
+
+    @Override
+    public AccessLog getLogById(Long id) {
+        return accessLogRepository.findById(id).orElse(null);
+    }
+
     /**
      * 定时清理任务 - 每天凌晨 2 点执行
      */

@@ -4,6 +4,7 @@ import com.httprun.entity.AccessLog;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,7 +17,7 @@ import java.util.List;
  * 访问日志数据访问层
  */
 @Repository
-public interface AccessLogRepository extends JpaRepository<AccessLog, Long> {
+public interface AccessLogRepository extends JpaRepository<AccessLog, Long>, JpaSpecificationExecutor<AccessLog> {
 
     /**
      * 根据 Token ID 查找日志
@@ -70,4 +71,11 @@ public interface AccessLogRepository extends JpaRepository<AccessLog, Long> {
      * 根据命令名称查找日志
      */
     Page<AccessLog> findByCommandName(String commandName, Pageable pageable);
+
+    /**
+     * 根据 Token ID 删除日志
+     */
+    @Modifying
+    @Query("DELETE FROM AccessLog a WHERE a.tokenId = :tokenId")
+    int deleteByTokenId(@Param("tokenId") String tokenId);
 }
