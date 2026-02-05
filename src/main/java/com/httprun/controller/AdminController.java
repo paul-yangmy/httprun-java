@@ -133,14 +133,19 @@ public class AdminController {
         // ========== 访问日志 ==========
 
         @GetMapping("/accesslog")
-        @Operation(summary = "获取访问日志", description = "分页查询系统访问日志，包含命令执行记录和 API 调用历史")
+        @Operation(summary = "获取访问日志", description = "分页查询系统访问日志，支持按类型筛选")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "日志获取成功"),
                         @ApiResponse(responseCode = "400", description = "分页参数错误")
         })
         public ResponseEntity<Page<AccessLog>> getAccessLogList(
                         @Parameter(description = "页码（从 1 开始）", example = "1") @RequestParam(defaultValue = "1") int page,
-                        @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "10") int pageSize) {
-                return ResponseEntity.ok(accessLogService.listLogs(page, pageSize));
+                        @Parameter(description = "每页记录数", example = "10") @RequestParam(defaultValue = "10") int pageSize,
+                        @Parameter(description = "日志类型筛选：command（仅命令执行）/all（全部）", example = "all") @RequestParam(defaultValue = "all") String type,
+                        @Parameter(description = "关键词搜索") @RequestParam(required = false) String keyword) {
+                // 根据 type 参数决定是否只显示命令执行记录
+                boolean commandOnly = "command".equalsIgnoreCase(type);
+                return ResponseEntity.ok(accessLogService.searchLogs(
+                                null, null, null, null, null, keyword, commandOnly, page, pageSize));
         }
 }
