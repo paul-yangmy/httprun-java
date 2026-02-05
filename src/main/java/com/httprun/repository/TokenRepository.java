@@ -78,6 +78,11 @@ public interface TokenRepository extends JpaRepository<Token, Long> {
     int deleteByNameIn(@Param("names") List<String> names);
 
     /**
+     * 查找所有未撤销的 Token
+     */
+    List<Token> findByRevokedFalseOrderByCreatedAtDesc();
+
+    /**
      * 检查是否存在未撤销的 Token
      */
     boolean existsByNameAndRevokedFalse(String name);

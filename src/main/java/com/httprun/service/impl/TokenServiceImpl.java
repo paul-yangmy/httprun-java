@@ -156,7 +156,8 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public List<Token> listAllTokens() {
-        return tokenRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        // 只返回未撤销的 Token，按创建时间倒序排列
+        return tokenRepository.findByRevokedFalseOrderByCreatedAtDesc();
     }
 
     @Override
@@ -179,6 +180,7 @@ public class TokenServiceImpl implements TokenService {
         // 撤销当前 Token
         token.setRevoked(true);
         tokenRepository.save(token);
+        tokenRepository.flush(); // 确保撤销操作立即写入数据库
 
         log.info("Revoked token: id={}, name={}, wasAdmin={}", token.getId(), token.getName(), wasAdmin);
 
@@ -191,7 +193,7 @@ public class TokenServiceImpl implements TokenService {
             adminRequest.setName("admin");
             adminRequest.setCommands(null); // 管理员拥有所有命令权限
             adminRequest.setIsAdmin(true);
-            adminRequest.setExpiresIn(0); // 默认 1 年
+            adminRequest.setExpiresIn(-1); // 永久有效
             adminRequest.setRemark("系统自动生成的管理员 Token（原管理员 Token 被撤销）");
             adminRequest.setAllowedStartTime(null);
             adminRequest.setAllowedEndTime(null);
@@ -199,8 +201,10 @@ public class TokenServiceImpl implements TokenService {
 
             // 创建新的管理员 Token（跳过唯一性检查，因为旧的已经撤销）
             Token newAdminToken = createAdminTokenInternal(adminRequest);
+            tokenRepository.flush(); // 确保新 Token 立即写入数据库
 
-            log.info("New admin token generated: id={}, name={}", newAdminToken.getId(), newAdminToken.getName());
+            log.info("New admin token generated and saved: id={}, name={}", newAdminToken.getId(),
+                    newAdminToken.getName());
 
             return RevokeTokenResponse.adminRevoke(
                     newAdminToken.getId(),
@@ -242,7 +246,10 @@ public class TokenServiceImpl implements TokenService {
         token.setRevoked(false);
         token.setRemark(request.getRemark());
 
-        return tokenRepository.save(token);
+        Token savedToken = tokenRepository.save(token);
+        log.info("Admin token saved to database: id={}, name={}, jwtToken length={}",
+                savedToken.getId(), savedToken.getName(), savedToken.getJwtToken().length());
+        return savedToken;
     }
 
     @Override
