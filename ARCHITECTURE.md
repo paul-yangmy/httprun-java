@@ -113,13 +113,24 @@ sequenceDiagram
 - 命令模板渲染（{{.var}}）、参数安全校验、超时/并发/沙箱隔离
 - 并发控制（Semaphore）、队列满异常、执行超时强杀
 
-### 4. 审批与审计
+### 4. 执行历史与访问日志
+
+- **智能日志记录**: 访问日志切面自动过滤 GET 查询请求，只记录修改类操作（POST/PUT/DELETE）和命令执行
+- **执行历史管理**: 
+  - 服务端统一存储执行历史，前端不再使用 localStorage
+  - 支持多条件筛选：Token、命令名、状态、时间范围、关键词搜索
+  - 支持分页查询、单条删除、批量删除、清空个人记录
+  - 管理员可查看所有用户的执行历史，普通用户只能查看自己的记录
+- **日志类型筛选**: 访问日志支持按类型筛选（仅命令执行 / 全部请求）
+- **字段命名规范**: API 返回数据统一使用驼峰命名（tokenId、commandName、statusCode 等）
+
+### 5. 审批与审计
 
 - 支持命令审批流（PENDING→APPROVED/REJECTED→EXECUTED）
 - 审批、执行、操作全链路结构化审计日志（Logback JSON）
 - 审批/执行通知机制（可扩展钉钉/邮件等）
 
-### 5. 监控与可观测性
+### 6. 监控与可观测性
 
 - Micrometer + Prometheus + Grafana 监控命令执行、Token、审批等指标
 - /actuator/health、/actuator/prometheus 健康与指标端点

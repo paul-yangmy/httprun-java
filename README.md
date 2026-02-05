@@ -12,7 +12,8 @@
 - **SSH 认证方式**: 三级认证机制，优先级为指定私钥 > 系统默认密钥 > 密码认证
 - **凭证加密**: 采用 AES-GCM 256 位加密存储 SSH 密码和私钥
 - **实时输出**: WebSocket 实时推送命令执行输出
-- **审计日志**: 完整的命令执行日志记录
+- **执行历史**: 服务端存储执行历史，支持查询、筛选、删除和管理员查看所有记录
+- **审计日志**: 完整的命令执行日志记录，智能过滤不必要的查询请求
 - **IP 白名单**: 支持 IP 访问限制
 - **速率限制**: 防止 API 滥用
 - **健康检查**: 内置健康检查接口
@@ -81,7 +82,7 @@ src/main/java/com/httprun/
 
 1. **克隆项目**
 ```bash
-git clone <repository-url>
+git clone https://github.com/paul-yangmy/httprun-java.git
 cd httprun-java
 ```
 
