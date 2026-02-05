@@ -86,29 +86,40 @@ declare namespace HTTPRUN {
   /** 访问日志项 */
   type AccessLogItem = {
     id: number;
-    token_id: string;
+    tokenId: string;
     path: string;
     ip: string;
     method: string;
     request: string;
     response: string;
-    status_code: number;
+    statusCode: number;
     duration: number;
     // 审计增强字段
-    user_agent: string;
+    userAgent: string;
     referer: string;
     source: string;      // WEB / API / CLI
-    forwarded_for: string;
-    request_id: string;
-    command_name: string;
-    created_at: string;
-    updated_at: string;
+    forwardedFor: string;
+    requestId: string;
+    commandName: string;
+    createdAt: string;
   };
 
-  /** 访问日志列表响应 */
+  /** 访问日志列表响应 (Spring Data Page 格式) */
   type AccessLogListResponse = {
-    items: AccessLogItem[];
-    total: number;
+    content: AccessLogItem[];
+    totalElements: number;
+    totalPages: number;
+    size: number;
+    number: number;
+  };
+
+  /** 执行历史响应 (Spring Data Page 格式) */
+  type ExecutionHistoryResponse = {
+    content: AccessLogItem[];
+    totalElements: number;
+    totalPages: number;
+    size: number;
+    number: number;
   };
 
   /** Token */

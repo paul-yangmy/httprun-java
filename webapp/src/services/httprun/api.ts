@@ -25,6 +25,84 @@ export async function getCurrentUser(options?: { [key: string]: any }) {
   });
 }
 
+/** 获取当前用户执行历史 GET /api/run/history */
+export async function getExecutionHistory(
+  params: {
+    page: number;
+    pageSize: number;
+    tokenName?: string;
+    commandName?: string;
+    status?: string;
+    startTime?: string;
+    endTime?: string;
+    keyword?: string;
+  },
+  options?: { [key: string]: any },
+) {
+  const queryParams = new URLSearchParams();
+  queryParams.append('page', String(params.page));
+  queryParams.append('pageSize', String(params.pageSize));
+  if (params.tokenName) queryParams.append('tokenName', params.tokenName);
+  if (params.commandName) queryParams.append('commandName', params.commandName);
+  if (params.status) queryParams.append('status', params.status);
+  if (params.startTime) queryParams.append('startTime', params.startTime);
+  if (params.endTime) queryParams.append('endTime', params.endTime);
+  if (params.keyword) queryParams.append('keyword', params.keyword);
+  
+  return request<HTTPRUN.ExecutionHistoryResponse>(
+    `/api/run/history?${queryParams.toString()}`,
+    {
+      method: 'GET',
+      headers: getTokenHeader(),
+      ...(options || {}),
+    },
+  );
+}
+
+/** 删除执行记录 DELETE /api/run/history/:id */
+export async function deleteExecutionHistoryItem(
+  id: number,
+  options?: { [key: string]: any },
+) {
+  return request<{ success: boolean; message: string }>(
+    `/api/run/history/${id}`,
+    {
+      method: 'DELETE',
+      headers: getTokenHeader(),
+      ...(options || {}),
+    },
+  );
+}
+
+/** 批量删除执行记录 DELETE /api/run/history */
+export async function deleteExecutionHistoryBatch(
+  ids: number[],
+  options?: { [key: string]: any },
+) {
+  return request<{ success: boolean; message: string; deleted: number }>(
+    `/api/run/history?ids=${ids.join(',')}`,
+    {
+      method: 'DELETE',
+      headers: getTokenHeader(),
+      ...(options || {}),
+    },
+  );
+}
+
+/** 清空当前用户执行记录 DELETE /api/run/history/clear */
+export async function clearExecutionHistory(
+  options?: { [key: string]: any },
+) {
+  return request<{ success: boolean; message: string; deleted: number }>(
+    '/api/run/history/clear',
+    {
+      method: 'DELETE',
+      headers: getTokenHeader(),
+      ...(options || {}),
+    },
+  );
+}
+
 // ==================== 命令相关 ====================
 
 /** 获取用户命令列表 GET /api/run/commands */
@@ -112,11 +190,10 @@ export async function deleteCommand(
 
 /** 获取 Token 列表 GET /api/admin/tokens */
 export async function getTokenList(
-  params: { pageIndex: number; pageSize: number },
   options?: { [key: string]: any },
 ) {
-  return request<HTTPRUN.TokenListResponse>(
-    `/api/admin/tokens?pageIndex=${params.pageIndex}&pageSize=${params.pageSize}`,
+  return request<HTTPRUN.TokenItem[]>(
+    `/api/admin/tokens`,
     {
       method: 'GET',
       headers: getTokenHeader(),
@@ -157,11 +234,22 @@ export async function deleteToken(
 
 /** 获取访问日志列表 GET /api/admin/accesslog */
 export async function getAccessLogList(
-  params: { pageIndex: number; pageSize: number },
+  params: { 
+    page: number; 
+    pageSize: number; 
+    type?: 'command' | 'all';
+    keyword?: string;
+  },
   options?: { [key: string]: any },
 ) {
+  const queryParams = new URLSearchParams();
+  queryParams.append('page', String(params.page));
+  queryParams.append('pageSize', String(params.pageSize));
+  if (params.type) queryParams.append('type', params.type);
+  if (params.keyword) queryParams.append('keyword', params.keyword);
+  
   return request<HTTPRUN.AccessLogListResponse>(
-    `/api/admin/accesslog?pageIndex=${params.pageIndex}&pageSize=${params.pageSize}`,
+    `/api/admin/accesslog?${queryParams.toString()}`,
     {
       method: 'GET',
       headers: getTokenHeader(),
