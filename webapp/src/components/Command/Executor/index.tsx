@@ -43,40 +43,11 @@ export interface CommandExecutorProps {
   onClose: () => void;
 }
 
-/** 执行历史项 */
-interface ExecutionHistoryItem {
-  id: number;
-  commandName: string;
-  params: string;
-  status: 'success' | 'error' | 'running';
-  stdout: string;
-  stderr: string;
-  duration: number;
-  executedAt: string;
-  ip: string;
-}
-
 /** 流式输出行 */
 interface StreamLine {
   type: 'stdout' | 'stderr';
   content: string;
 }
-
-/** 保存执行历史到 localStorage */
-const saveExecutionHistory = (item: ExecutionHistoryItem) => {
-  try {
-    const historyStr = localStorage.getItem('command_execution_history') || '[]';
-    const history: ExecutionHistoryItem[] = JSON.parse(historyStr);
-    // 限制最多保存 200 条记录
-    if (history.length >= 200) {
-      history.shift();
-    }
-    history.push(item);
-    localStorage.setItem('command_execution_history', JSON.stringify(history));
-  } catch (e) {
-    console.error('Failed to save execution history:', e);
-  }
-};
 
 /** 获取命令配置，兼容旧版 command 字段 */
 const getCommandConfig = (cmd: HTTPRUN.CommandItem | null | undefined): HTTPRUN.CommandConfig => {
@@ -171,28 +142,7 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
           setRunning(false);
           setStreamComplete({ exitCode, duration });
 
-          // 收集所有输出保存历史
-          const allStdout = linesRef.current
-            .filter((l) => l.type === 'stdout')
-            .map((l) => l.content)
-            .join('\n');
-          const allStderr = linesRef.current
-            .filter((l) => l.type === 'stderr')
-            .map((l) => l.content)
-            .join('\n');
-
-          const historyItem: ExecutionHistoryItem = {
-            id: Date.now(),
-            commandName: command.name,
-            params: JSON.stringify(params),
-            status: exitCode === 0 ? 'success' : 'error',
-            stdout: allStdout,
-            stderr: allStderr,
-            duration,
-            executedAt: new Date().toISOString(),
-            ip: '-',
-          };
-          saveExecutionHistory(historyItem);
+          // 执行历史由后端 AccessLog 记录，无需本地存储
 
           if (exitCode === 0) {
             message.success('命令执行成功');
@@ -229,27 +179,12 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
     setRunning(true);
     setResult(null);
     
-    const startTime = Date.now();
-    
     runCommand(command.name, params, [])
       .then((r) => {
-        const duration = Date.now() - startTime;
         setRunning(false);
         setResult(r);
 
-        // 保存执行历史
-        const historyItem: ExecutionHistoryItem = {
-          id: Date.now(),
-          commandName: command.name,
-          params: JSON.stringify(params),
-          status: r.error ? 'error' : 'success',
-          stdout: r.stdout || '',
-          stderr: r.stderr || '',
-          duration,
-          executedAt: new Date().toISOString(),
-          ip: '-',
-        };
-        saveExecutionHistory(historyItem);
+        // 执行历史由后端 AccessLog 自动记录，无需本地存储
 
         if (!r.error) {
           message.success('命令执行成功');
@@ -258,23 +193,8 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
         }
       })
       .catch(() => {
-        const duration = Date.now() - startTime;
         setRunning(false);
-        
-        // 保存失败的执行历史
-        const historyItem: ExecutionHistoryItem = {
-          id: Date.now(),
-          commandName: command.name,
-          params: JSON.stringify(params),
-          status: 'error',
-          stdout: '',
-          stderr: '命令执行失败',
-          duration,
-          executedAt: new Date().toISOString(),
-          ip: '-',
-        };
-        saveExecutionHistory(historyItem);
-        
+        // 执行历史由后端 AccessLog 自动记录，无需本地存储
         message.error('命令执行失败');
       });
   }, [command]);
