@@ -11,9 +11,6 @@ out/
 # Visual Studio Code
 ####################################
 .vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/launch.json
 *.code-workspace
 .history/
 

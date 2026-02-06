@@ -35,6 +35,9 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
   
   # 静态资源配置
+  # 注意：WebConfig 会自动检测环境并选择合适的静态资源位置
+  # - 开发环境：优先从 file:./webapp/dist/ 读取（支持热更新）
+  # - 生产环境：从 classpath:/static/ 读取（jar包内资源）
   web:
     resources:
       static-locations: 

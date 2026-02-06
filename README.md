@@ -86,10 +86,28 @@ git clone https://github.com/paul-yangmy/httprun-java.git
 cd httprun-java
 ```
 
-2. **构建项目**
-```bash
-mvn clean package -DskipTests
-```
+2. **构建项目（包含前端）**
+
+   Maven构建会自动完成以下步骤：
+   - 安装 Node.js 和 npm（如果系统中不存在）
+   - 安装前端依赖（npm install）
+   - 构建前端项目（npm run build）
+   - 将前端构建产物打包进 jar 包
+
+   ```bash
+   mvn clean package -DskipTests
+   ```
+
+   **仅构建后端（跳过前端）**：
+   ```bash
+   mvn clean package -DskipTests -Dfrontend-maven-plugin.skip=true
+   ```
+
+   **构建完成后**，jar包会包含：
+   - 后端服务（Spring Boot应用）
+   - 前端静态资源（打包在 /static 目录下）
+   
+   可以直接运行单个jar包访问完整应用。
 
 3. **使用开发模式启动**（SQLite 数据库，自动生成管理员 Token）
 ```bash
@@ -117,6 +135,8 @@ eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiIq...
 
 #### 前端开发
 
+**开发模式**（热更新，独立运行）：
+
 1. **进入前端目录**
 ```bash
 cd webapp
@@ -132,10 +152,22 @@ npm install
 npm start
 ```
 
-4. **构建生产版本**
+前端将在 http://localhost:8000 启动，并自动代理API请求到后端（8081端口）。
+
+**生产构建**：
+
+前端会在执行 `mvn package` 时自动构建并打包进jar包。如果需要单独构建前端：
+
 ```bash
+cd webapp
 npm run build
 ```
+
+构建产物在 `webapp/dist` 目录，会在Maven构建时自动复制到jar包的 `/static` 目录。
+
+**资源访问说明**：
+- **开发环境**：Spring Boot会从 `webapp/dist` 目录读取静态文件（支持热更新）
+- **生产环境**：Spring Boot会从jar包内的 `classpath:/static/` 读取静态文件
 
 ### Docker 部署
 
