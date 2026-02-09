@@ -166,8 +166,9 @@ npm run build
 构建产物在 `webapp/dist` 目录，会在Maven构建时自动复制到jar包的 `/static` 目录。
 
 **资源访问说明**：
-- **开发环境**：Spring Boot会从 `webapp/dist` 目录读取静态文件（支持热更新）
-- **生产环境**：Spring Boot会从jar包内的 `classpath:/static/` 读取静态文件
+WebConfig 同时注册本地文件系统和 classpath 两个资源位置，按优先级链式查找：
+- **优先**：从本地 `webapp/dist/` 目录读取（支持开发热更新）
+- **兜底**：从 jar 包内的 `classpath:/static/` 读取（适用于所有环境）
 
 ### Docker 部署
 
@@ -186,13 +187,19 @@ docker-compose logs -f httprun
 docker-compose --profile monitoring up -d
 ```
 
+4. **指定环境** (可选)
+```bash
+# 通过环境变量覆盖 profile
+docker run -e SPRING_PROFILES_ACTIVE=dev httprun-app
+```
+
 ## 📖 API 使用
 
 ### 认证
 
 **管理员登录获取 JWT:**
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 ```
@@ -201,7 +208,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 **创建命令:**
 ```bash
-curl -X POST http://localhost:8080/api/admin/commands \
+curl -X POST http://localhost:8081/api/admin/commands \
   -H "Authorization: Bearer <jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -220,7 +227,7 @@ curl -X POST http://localhost:8080/api/admin/commands \
 
 **创建 API Token:**
 ```bash
-curl -X POST http://localhost:8080/api/admin/tokens \
+curl -X POST http://localhost:8081/api/admin/tokens \
   -H "Authorization: Bearer <jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -232,7 +239,7 @@ curl -X POST http://localhost:8080/api/admin/tokens \
   }'
 **创建带有 SSH 远程执行的命令:**
 ```bash
-curl -X POST http://localhost:8080/api/admin/commands \
+curl -X POST http://localhost:8081/api/admin/commands \
   -H "Authorization: Bearer <jwt_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -263,7 +270,7 @@ curl -X POST http://localhost:8080/api/admin/commands \
 
 **本地执行:**
 ```bash
-curl -X POST http://localhost:8080/api/run/hello \
+curl -X POST http://localhost:8081/api/run/hello \
   -H "Authorization: Bearer <api_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -274,7 +281,7 @@ curl -X POST http://localhost:8080/api/run/hello \
 
 **远程 SSH 执行:**
 ```bash
-curl -X POST http://localhost:8080/api/run/remote-echo \
+curl -X POST http://localhost:8081/api/run/remote-echo \
   -H "Authorization: Bearer <api_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -289,17 +296,21 @@ curl -X POST http://localhost:8080/api/run/remote-echo \
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `SPRING_PROFILES_ACTIVE` | 激活的配置文件 | `dev` |
-| `MYSQL_HOST` | MySQL 主机 | `localhost` |
-| `MYSQL_PORT` | MySQL 端口 | `3306` |
-| `MYSQL_DATABASE` | 数据库名 | `httprun` |
-| `MYSQL_USERNAME` | 数据库用户名 | `root` |
-| `MYSQL_PASSWORD` | 数据库密码 | - |
+| `SPRING_PROFILES_ACTIVE` | 激活的配置文件 | `dev`（Dockerfile 默认 `prod`） |
+| `DB_URL` | 完整数据库 JDBC URL（设置后忽略 DB_HOST/DB_PORT） | - |
+| `DB_HOST` | 数据库主机 | `localhost` |
+| `DB_PORT` | 数据库端口 | `3306` |
+| `DB_USER` | 数据库用户名 | `root` |
+| `DB_PASSWORD` | 数据库密码 | `root` |
+| `DB_DRIVER` | 数据库驱动类 | `com.mysql.cj.jdbc.Driver` |
+| `DB_POOL_MIN_IDLE` | 连接池最小空闲数 | `5` |
+| `DB_POOL_MAX_SIZE` | 连接池最大连接数 | `20` |
 | `REDIS_HOST` | Redis 主机 | `localhost` |
 | `REDIS_PORT` | Redis 端口 | `6379` |
-| `JWT_SECRET` | JWT 密钥 | - |
-| `JWT_EXPIRATION` | JWT 过期时间(ms) | `3600000` |
-| `COMMAND_TIMEOUT` | 命令默认超时(ms) | `30000` |
+| `REDIS_PASSWORD` | Redis 密码 | 空 |
+| `JWT_SECRET` | JWT 密钥（生产环境必须修改） | - |
+| `INIT_ADMIN_TOKEN` | 启动时是否初始化管理员 Token | `false` |
+| `WEBAPP_BUILD_DIR` | 前端构建产物目录 | `./webapp/dist` |
 | `HTTPRUN_CRYPTO_SECRET_KEY` | SSH 认证信息加密密钥 | 系统自动生成 |
 
 ### SSH 认证配置

@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Maven build output
+target/
+
+# Node modules (will be installed during Docker build)
+webapp/node_modules
+webapp/dist
+webapp/.umi
+webapp/.umi-production
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Documentation
+docs/
+*.md
+!webapp/README.md
+
+# SQLite dev database
+*.db
+
+# Scripts
+scripts/

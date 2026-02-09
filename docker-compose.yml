@@ -8,21 +8,18 @@ services:
       dockerfile: Dockerfile
     container_name: httprun-app
     ports:
-      - "8080:8080"
+      - "8081:8081"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=httprun
-      - MYSQL_USERNAME=httprun
-      - MYSQL_PASSWORD=httprun123
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=httprun
+      - DB_PASSWORD=httprun123
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
-      - JWT_SECRET=your-production-jwt-secret-key-change-this
-      - JWT_EXPIRATION=3600000
-      - COMMAND_TIMEOUT=30000
-      - COMMAND_POOL_SIZE=10
+      - JWT_SECRET=your-production-jwt-secret-key-change-this-at-least-32-chars
+      - INIT_ADMIN_TOKEN=false
     depends_on:
       mysql:
         condition: service_healthy
@@ -32,7 +29,7 @@ services:
       - httprun-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -4,7 +4,7 @@
 
 HttpRun 是一个 HTTP API Shell 命令网关系统，提供安全的命令执行能力。
 
-**Base URL**: `http://localhost:8080`
+**Base URL**: `http://localhost:8081`
 
 **认证方式**:
 - 管理员接口: JWT Token (Header: `Authorization: Bearer <jwt_token>`)

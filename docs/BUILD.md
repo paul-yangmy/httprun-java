@@ -67,17 +67,23 @@ java -jar target/httprun-java-1.0.0.jar
 
 ### WebConfig 智能资源加载
 
-`WebConfig.java` 会自动检测环境并选择合适的资源加载方式：
+`WebConfig.java` 配置了双重资源位置，按优先级链式查找，不以静态资源目录是否存在来区分环境：
+
+1. **本地文件系统** `file:./webapp/dist/` → 优先查找（支持开发热更新）
+2. **classpath:/static/** → 本地未找到时回退到 jar 包内资源
+3. **SPA 路由兜底**：`index.html` 同样先找本地、再找 classpath
 
 #### 开发环境
-- **条件**：`webapp/dist/` 目录存在
-- **行为**：从文件系统读取 `webapp/dist/`
+- **行为**：优先从 `webapp/dist/` 读取，如果本地没有则从 jar 包内读取
 - **优势**：支持前端热更新，无需重启后端
 
-#### 生产环境
-- **条件**：`webapp/dist/` 目录不存在（通常是jar包运行）
-- **行为**：从 `classpath:/static/` 读取
-- **优势**：单jar包部署，无需外部文件
+#### 生产环境（jar 包部署）
+- **行为**：本地通常不存在 `webapp/dist/`，自动从 `classpath:/static/` 读取
+- **优势**：单 jar 包部署，无需外部文件
+
+#### 测试环境
+- **行为**：即使 jar 包内已编译前端资源，本地 `webapp/dist/` 存在时仍优先使用
+- **优势**：与开发一致的资源加载逻辑，方便调试
 
 ### SPA 路由支持
 

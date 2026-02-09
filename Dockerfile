@@ -9,7 +9,10 @@ WORKDIR /app
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
-# 复制源码并构建
+# 复制前端源码（供 frontend-maven-plugin 构建）
+COPY webapp ./webapp
+
+# 复制后端源码并构建（含前端打包）
 COPY src ./src
 RUN mvn clean package -DskipTests -B
 
@@ -37,15 +40,17 @@ RUN chown -R httprun:httprun /app
 # 切换到非 root 用户
 USER httprun
 
-# 暴露端口
-EXPOSE 8080
+# 暴露端口（与 application.yml server.port 一致）
+EXPOSE 8081
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/api/health || exit 1
+    CMD curl -f http://localhost:8081/api/health || exit 1
 
 # JVM 参数
 ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Djava.security.egd=file:/dev/./urandom"
+# Spring Profile（可通过 docker run -e SPRING_PROFILES_ACTIVE=xxx 覆盖）
+ENV SPRING_PROFILES_ACTIVE="prod"
 
 # 启动命令
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dspring.profiles.active=$SPRING_PROFILES_ACTIVE -jar app.jar"]

@@ -7,7 +7,7 @@ scrape_configs:
   - job_name: 'httprun'
     metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['httprun:8080']
+      - targets: ['httprun:8081']
     scrape_interval: 5s
 
   - job_name: 'prometheus'
