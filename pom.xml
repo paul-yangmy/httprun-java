@@ -137,6 +137,12 @@
             <version>${jsch.version}</version>
         </dependency>
 
+        <!-- Apache Commons Pool2 (SSH Connection Pool) -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+
         <!-- Caffeine Cache -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
