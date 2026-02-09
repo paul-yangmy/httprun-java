@@ -80,6 +80,27 @@ command:
     max-timeout: 300
     max-concurrent: 10
 
+# SSH 连接池配置
+ssh:
+  pool:
+    enabled: true                # 是否启用连接池，false 则每次新建连接
+    max-per-host: 5              # 每个主机最大连接数
+    max-idle-per-host: 2         # 每个主机最大空闲连接数
+    min-idle-per-host: 0         # 每个主机最小空闲连接数
+    max-total: 50                # 全局最大连接数
+    connect-timeout-ms: 10000    # SSH 连接超时（毫秒）
+    borrow-timeout-ms: 5000      # 借用等待超时（毫秒）
+    eviction-interval-ms: 30000  # 空闲驱逐检查间隔（毫秒）
+    min-idle-time-ms: 60000      # 空闲连接最小存活时间（毫秒）
+    max-lifetime-ms: 600000      # 连接最大存活时间（毫秒）
+    test-on-borrow: true         # 借用时验证连接
+    test-on-return: false        # 归还时验证连接
+    test-while-idle: true        # 空闲时验证连接
+    keep-alive-interval-ms: 15000 # SSH KeepAlive 间隔（毫秒）
+    host-key-check-enabled: true   # 是否启用主机指纹验证（TOFU 策略，防中间人攻击）
+    channel-connect-timeout-ms: 10000  # 通道连接超时（毫秒），0 = 跟随 connect-timeout-ms
+    execution-timeout-seconds: 0       # 命令执行超时（秒），0 = 使用调用方传入的值
+
 # SpringDoc 配置
 springdoc:
   api-docs:
@@ -104,7 +125,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,ssh-pool
   endpoint:
     health:
       show-details: when_authorized
