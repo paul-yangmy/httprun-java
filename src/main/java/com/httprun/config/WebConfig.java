@@ -9,6 +9,8 @@ import org.springframework.lang.NonNull;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.servlet.resource.PathResourceResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,96 +19,105 @@ import java.nio.file.Paths;
 
 /**
  * Web MVC 配置
- * 支持开发环境（从文件系统读取）和生产环境（从classpath读取）
+ * 静态资源查找策略：优先从本地文件系统（webapp/dist）读取，找不到时回退到 classpath:/static/（jar 包内资源）
+ * 不以静态资源目录是否存在来区分环境
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    private static final Logger log = LoggerFactory.getLogger(WebConfig.class);
+    private static final String CLASSPATH_STATIC_ROOT = "static/";
 
     @Value("${httprun.webapp-build-dir:./webapp/dist}")
     private String webappBuildDir;
 
     @Override
     public void addResourceHandlers(@NonNull ResourceHandlerRegistry registry) {
-        // 检查开发环境目录是否存在
         Path devPath = Paths.get(webappBuildDir).toAbsolutePath();
-        boolean isDevMode = Files.exists(devPath);
+        String fileLocation = "file:" + devPath.toString().replace("\\", "/") + "/";
 
-        if (isDevMode) {
-            // 开发环境：从文件系统读取
-            String resourceLocation = "file:" + devPath.toString().replace("\\", "/") + "/";
-            registry.addResourceHandler("/**")
-                    .addResourceLocations(resourceLocation)
-                    .resourceChain(true)
-                    .addResolver(createFileSystemResourceResolver(devPath));
-        } else {
-            // 生产环境：从classpath读取
-            registry.addResourceHandler("/**")
-                    .addResourceLocations("classpath:/static/")
-                    .resourceChain(true)
-                    .addResolver(createClasspathResourceResolver());
+        logStaticResourceInfo(devPath, fileLocation);
+
+        // 同时注册两个资源位置：本地文件系统优先，classpath 兜底
+        registry.addResourceHandler("/**")
+                .addResourceLocations(fileLocation, "classpath:/static/")
+                .resourceChain(true)
+                .addResolver(createFallbackResourceResolver(devPath));
+    }
+
+    /**
+     * 创建支持双重回退的资源解析器
+     * 查找顺序：本地文件系统 → classpath:/static/ → SPA index.html 回退
+     */
+    private PathResourceResolver createFallbackResourceResolver(Path localBasePath) {
+        return new PathResourceResolver() {
+            @Override
+            protected Resource getResource(@NonNull String resourcePath, @NonNull Resource location)
+                    throws IOException {
+                Resource requestedResource = resolveStaticResource(resourcePath, localBasePath);
+                if (requestedResource != null) {
+                    return requestedResource;
+                }
+
+                // 对于 API 请求，不做处理
+                if (resourcePath.startsWith("api/")) {
+                    return null;
+                }
+
+                // 静态资源路径（包含后缀）不做 SPA 回退
+                if (isAssetRequest(resourcePath)) {
+                    return null;
+                }
+
+                // 2. SPA 路由回退：优先本地 index.html，其次 classpath 中的 index.html
+                Path localIndex = localBasePath.resolve("index.html");
+                Resource localIndexResource = new FileSystemResource(localIndex);
+                if (localIndexResource.exists() && localIndexResource.isReadable()) {
+                    return localIndexResource;
+                }
+
+                Resource classpathIndex = new ClassPathResource("static/index.html");
+                if (classpathIndex.exists() && classpathIndex.isReadable()) {
+                    return classpathIndex;
+                }
+
+                return null;
+            }
+        };
+    }
+
+    private Resource resolveStaticResource(String resourcePath, Path localBasePath) {
+        Path localPath = localBasePath.resolve(resourcePath);
+        if (Files.exists(localPath) && Files.isReadable(localPath)) {
+            return new FileSystemResource(localPath);
         }
+
+        Resource classpathResource = new ClassPathResource(CLASSPATH_STATIC_ROOT + resourcePath);
+        if (classpathResource.exists() && classpathResource.isReadable()) {
+            return classpathResource;
+        }
+
+        return null;
     }
 
-    /**
-     * 创建文件系统资源解析器（开发环境）
-     */
-    private PathResourceResolver createFileSystemResourceResolver(Path basePath) {
-        return new PathResourceResolver() {
-            @Override
-            protected Resource getResource(@NonNull String resourcePath, @NonNull Resource location)
-                    throws IOException {
-                Resource requestedResource = location.createRelative(resourcePath);
-
-                // 如果请求的资源存在，返回它
-                if (requestedResource.exists() && requestedResource.isReadable()) {
-                    return requestedResource;
-                }
-
-                // 对于 API 请求，不做处理
-                if (resourcePath.startsWith("api/")) {
-                    return null;
-                }
-
-                // 对于 SPA 路由，返回 index.html
-                Path indexPath = basePath.resolve("index.html");
-                Resource indexResource = new FileSystemResource(indexPath);
-                if (indexResource.exists()) {
-                    return indexResource;
-                }
-
-                return null;
-            }
-        };
+    private boolean isAssetRequest(String resourcePath) {
+        int lastSlash = resourcePath.lastIndexOf('/');
+        String fileName = lastSlash >= 0 ? resourcePath.substring(lastSlash + 1) : resourcePath;
+        return fileName.contains(".");
     }
 
-    /**
-     * 创建classpath资源解析器（生产环境）
-     */
-    private PathResourceResolver createClasspathResourceResolver() {
-        return new PathResourceResolver() {
-            @Override
-            protected Resource getResource(@NonNull String resourcePath, @NonNull Resource location)
-                    throws IOException {
-                Resource requestedResource = location.createRelative(resourcePath);
+    private void logStaticResourceInfo(Path localBasePath, String fileLocation) {
+        Path localIndex = localBasePath.resolve("index.html");
+        boolean localDirExists = Files.isDirectory(localBasePath);
+        boolean localIndexExists = Files.exists(localIndex) && Files.isReadable(localIndex);
+        boolean classpathIndexExists = new ClassPathResource(CLASSPATH_STATIC_ROOT + "index.html").exists();
 
-                // 如果请求的资源存在，返回它
-                if (requestedResource.exists() && requestedResource.isReadable()) {
-                    return requestedResource;
-                }
-
-                // 对于 API 请求，不做处理
-                if (resourcePath.startsWith("api/")) {
-                    return null;
-                }
-
-                // 对于 SPA 路由，返回 index.html
-                Resource indexResource = new ClassPathResource("static/index.html");
-                if (indexResource.exists()) {
-                    return indexResource;
-                }
-
-                return null;
-            }
-        };
+        log.info(
+                "Static resources: localDir={} (exists={}, indexExists={}), classpathIndexExists={}, locations=[{}, classpath:/static/]",
+                localBasePath,
+                localDirExists,
+                localIndexExists,
+                classpathIndexExists,
+                fileLocation);
     }
 }
