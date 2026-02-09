@@ -212,6 +212,19 @@ HttpRun 是一个 HTTP API Shell 命令网关系统，提供安全的命令执�
 }
 ```
 
+### 应用信息
+
+**GET** `/api/info`
+
+**响应:**
+```json
+{
+  "name": "HttpRun",
+  "version": "1.0.0",
+  "description": "HTTP API Shell Command Gateway"
+}
+```
+
 ---
 
 ## 错误码

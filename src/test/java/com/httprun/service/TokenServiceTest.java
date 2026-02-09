@@ -118,14 +118,14 @@ class TokenServiceTest {
     void listAllTokens_shouldReturnSortedList() {
         // Given
         List<Token> tokens = List.of(testToken);
-        when(tokenRepository.findAll(any(Sort.class))).thenReturn(tokens);
+        when(tokenRepository.findByRevokedFalseOrderByCreatedAtDesc()).thenReturn(tokens);
 
         // When
         List<Token> result = tokenService.listAllTokens();
 
         // Then
         assertThat(result).hasSize(1);
-        verify(tokenRepository).findAll(any(Sort.class));
+        verify(tokenRepository).findByRevokedFalseOrderByCreatedAtDesc();
     }
 
     @Test

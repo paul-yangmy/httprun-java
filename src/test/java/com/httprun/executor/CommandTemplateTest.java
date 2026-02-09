@@ -4,6 +4,7 @@ import com.httprun.dto.request.RunCommandRequest;
 import com.httprun.entity.Command;
 import com.httprun.entity.CommandConfig;
 import com.httprun.entity.ParamDefine;
+import com.httprun.exception.SecurityException;
 import com.httprun.util.CommandSecurityValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -182,7 +183,7 @@ class CommandTemplateTest {
         // When / Then
         assertThatThrownBy(() -> commandTemplate.validateParams(testCommand, request))
                 .isInstanceOf(SecurityException.class)
-                .hasMessageContaining("dangerous character");
+                .hasMessageContaining("包含不允许的字符");
     }
 
     @Test

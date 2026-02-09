@@ -337,7 +337,8 @@ curl -X POST http://localhost:8081/api/run/remote-echo \
 
 ## 📊 监控
 
-- **健康检查**: `GET /api/health`
+- **健康检查**: `GET /api/health` - 返回系统运行状态
+- **应用信息**: `GET /api/info` - 返回应用名称、版本和描述
 - **Prometheus 指标**: `GET /actuator/prometheus`
 - **Grafana 仪表盘**: `http://localhost:3000` (需启用 monitoring profile)
 

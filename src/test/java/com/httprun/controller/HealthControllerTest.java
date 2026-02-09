@@ -30,7 +30,7 @@ class HealthControllerTest {
 
     @Test
     void testIndexPage() throws Exception {
-        mockMvc.perform(get("/"))
+        mockMvc.perform(get("/api/info"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("HttpRun"))
                 .andExpect(jsonPath("$.version").exists());

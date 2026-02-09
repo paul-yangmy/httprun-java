@@ -12,6 +12,8 @@ import com.httprun.executor.LocalCommandExecutor;
 import com.httprun.executor.SshCommandExecutor;
 import com.httprun.repository.CommandRepository;
 import com.httprun.service.impl.CommandServiceImpl;
+import com.httprun.util.CommandSecurityValidator;
+import com.httprun.util.CryptoUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,12 @@ class CommandServiceTest {
 
     @Mock
     private SshCommandExecutor sshExecutor;
+
+    @Mock
+    private CryptoUtils cryptoUtils;
+
+    @Mock
+    private CommandSecurityValidator securityValidator;
 
     @InjectMocks
     private CommandServiceImpl commandService;
