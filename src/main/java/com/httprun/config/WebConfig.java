@@ -88,7 +88,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     private Resource resolveStaticResource(String resourcePath, Path localBasePath) {
         Path localPath = localBasePath.resolve(resourcePath);
-        if (Files.exists(localPath) && Files.isReadable(localPath)) {
+        // 只返回常规文件，不返回目录
+        if (Files.exists(localPath) && Files.isReadable(localPath) && Files.isRegularFile(localPath)) {
             return new FileSystemResource(localPath);
         }
 
