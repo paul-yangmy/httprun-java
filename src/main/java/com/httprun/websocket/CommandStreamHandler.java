@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.httprun.dto.request.RunCommandRequest;
 import com.httprun.entity.Command;
 import com.httprun.entity.EnvVar;
+import com.httprun.entity.RemoteConfig;
 import com.httprun.enums.CommandStatus;
 import com.httprun.exception.BusinessException;
 import com.httprun.executor.CommandTemplate;
@@ -39,9 +40,12 @@ public class CommandStreamHandler extends TextWebSocketHandler {
     private final CommandRepository commandRepository;
     private final CommandTemplate commandTemplate;
     private final ObjectMapper objectMapper;
+    private final com.httprun.executor.SshCommandExecutor sshCommandExecutor;
 
     // 存储活跃的执行进程，支持取消
     private final Map<String, Process> activeProcesses = new ConcurrentHashMap<>();
+    // SSH 流式执行的取消回调
+    private final Map<String, Runnable> activeCancelCallbacks = new ConcurrentHashMap<>();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -112,6 +116,8 @@ public class CommandStreamHandler extends TextWebSocketHandler {
             runRequest.setName(request.getName());
             runRequest.setParams(request.getParams());
             runRequest.setEnv(request.getEnv());
+            // 支持通过 WebSocket 传入 remoteConfig（用于 SSH 流式输出）
+            runRequest.setRemoteConfig(request.getRemoteConfig());
 
             // 5. 验证参数
             commandTemplate.validateParams(command, runRequest);
@@ -127,7 +133,36 @@ public class CommandStreamHandler extends TextWebSocketHandler {
 
             // 8. 执行命令并流式输出
             int timeout = request.getTimeout() != null ? request.getTimeout() : command.getTimeoutSeconds();
-            executeWithStreaming(session, actualCommand, timeout);
+            // 如果请求中包含 remoteConfig，则使用 SSH 流式执行
+            RemoteConfig reqRemote = request.getRemoteConfig();
+            if (reqRemote != null && reqRemote.getHost() != null && !reqRemote.getHost().isBlank()) {
+                // SSH 流式执行在独立线程中进行，注册取消回调
+                Thread t = new Thread(() -> {
+                    long startTime = System.currentTimeMillis();
+                    try {
+                        int exit = sshCommandExecutor.executeStreaming(reqRemote, actualCommand, timeout,
+                                (type, line) -> {
+                                    if ("stdout".equals(type)) {
+                                        sendMessage(session, new StreamMessage("stdout", line, null, null));
+                                    } else {
+                                        sendMessage(session, new StreamMessage("stderr", null, line, null));
+                                    }
+                                }, (cancelFn) -> activeCancelCallbacks.put(sessionId, cancelFn));
+
+                        long duration = System.currentTimeMillis() - startTime;
+                        sendComplete(session, exit, duration);
+                    } catch (Exception e) {
+                        log.error("SSH stream execution error", e);
+                        sendError(session, e.getMessage());
+                        sendComplete(session, -1, System.currentTimeMillis() - startTime);
+                    } finally {
+                        activeCancelCallbacks.remove(sessionId);
+                    }
+                }, "ssh-stream-" + sessionId);
+                t.start();
+            } else {
+                executeWithStreaming(session, actualCommand, timeout);
+            }
 
         } catch (BusinessException e) {
             sendError(session, e.getMessage());
@@ -233,7 +268,16 @@ public class CommandStreamHandler extends TextWebSocketHandler {
      */
     private void handleCancel(WebSocketSession session) {
         String sessionId = session.getId();
-        if (cancelProcess(sessionId)) {
+        boolean cancelled = cancelProcess(sessionId);
+        Runnable cancelCb = activeCancelCallbacks.remove(sessionId);
+        if (cancelCb != null) {
+            try {
+                cancelCb.run();
+                cancelled = true;
+            } catch (Exception ignored) {
+            }
+        }
+        if (cancelled) {
             sendMessage(session, new StreamMessage("cancelled", null, null, null));
             log.info("Command cancelled for session: {}", sessionId);
         } else {
@@ -335,6 +379,7 @@ public class CommandStreamHandler extends TextWebSocketHandler {
         private List<RunCommandRequest.ParamInput> params;
         private List<EnvVar> env;
         private Integer timeout;
+        private com.httprun.entity.RemoteConfig remoteConfig;
     }
 
     /**
