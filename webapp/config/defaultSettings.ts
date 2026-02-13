@@ -6,6 +6,8 @@ import type { ProLayoutProps } from '@ant-design/pro-components';
 const Settings: ProLayoutProps & {
   pwa?: boolean;
   logo?: string;
+  /** 是否默认启用实时输出（流式模式），优先级：组件可覆盖 */
+  useRealtimeOutput?: boolean;
 } = {
   navTheme: 'light',
   colorPrimary: '#1677ff',
@@ -22,6 +24,8 @@ const Settings: ProLayoutProps & {
   breakpoint: 'md' as any,
   siderWidth: 208,
   collapsedWidth: 48,
+  // 默认不使用实时输出
+  useRealtimeOutput: false,
 };
 
 export default Settings;

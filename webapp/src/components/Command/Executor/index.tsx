@@ -69,8 +69,14 @@ const CommandExecutor: React.FC<CommandExecutorProps> = ({
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<HTTPRUN.CommandOutputResponse | null>(null);
   
-  // WebSocket 流式模式
-  const [streamMode, setStreamMode] = useState(true);
+  // WebSocket 流式模式（默认从全局配置读取）
+  // 全局配置位于 webapp/config/defaultSettings.ts 中的 `useRealtimeOutput`
+  // 使用相对导入到 config：src -> ../config
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const defaultSettings = require('@/../config/defaultSettings').default as any;
+  const [streamMode, setStreamMode] = useState<boolean>(
+    defaultSettings?.useRealtimeOutput ?? false,
+  );
   const [streamLines, setStreamLines] = useState<StreamLine[]>([]);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streamComplete, setStreamComplete] = useState<{ exitCode: number; duration: number } | null>(null);
