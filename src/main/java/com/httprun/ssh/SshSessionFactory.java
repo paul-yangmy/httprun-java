@@ -17,7 +17,9 @@ import java.io.File;
  * SSH Session 对象工厂 — Apache Commons Pool2 KeyedPool 工厂实现
  * <p>
  * 负责 SSH Session 的创建、验证、销毁和激活。
- * 认证方式优先级：指定私钥 > 系统默认密钥 > 密码认证
+ * 认证方式优先级：
+ * 1. 用户显式提供的用户名+密码 / 私钥（二选一）
+ * 2. 未显式提供时，使用服务器本地的默认 SSH 密钥（如 ~/.ssh/id_rsa）
  * <p>
  * 指纹管理：使用 {@link DatabaseHostKeyRepository} 替代 StrictHostKeyChecking=no，
  * 首次连接自动记录指纹（TOFU），后续连接自动验证（防中间人攻击）。
@@ -62,26 +64,31 @@ public class SshSessionFactory extends BaseKeyedPooledObjectFactory<SshSessionKe
         log.info("Creating new SSH session for {}", key.toLabel());
 
         JSch jsch = new JSch();
-        boolean hasAuth = false;
 
-        // 方式1：使用指定的私钥
-        if (remoteConfig != null && remoteConfig.getPrivateKey() != null
-                && !remoteConfig.getPrivateKey().isBlank()) {
+        boolean hasPrivateKey = remoteConfig != null
+                && remoteConfig.getPrivateKey() != null
+                && !remoteConfig.getPrivateKey().isBlank();
+        boolean hasPassword = remoteConfig != null
+                && remoteConfig.getPassword() != null
+                && !remoteConfig.getPassword().isBlank();
+
+        // 优先使用用户显式提供的私钥
+        if (hasPrivateKey) {
             String privateKey = cryptoUtils.isEncrypted(remoteConfig.getPrivateKey())
                     ? cryptoUtils.decrypt(remoteConfig.getPrivateKey())
                     : remoteConfig.getPrivateKey();
             jsch.addIdentity("key-" + key.toLabel(), privateKey.getBytes(), null, null);
-            hasAuth = true;
             log.debug("Using provided private key for SSH authentication to {}", key.toLabel());
         }
 
-        // 方式2：尝试使用系统默认 SSH 密钥
-        if (!hasAuth) {
-            String defaultKeyPath = getDefaultSshKeyPath();
+        String defaultKeyPath = null;
+
+        // 仅当用户未提供任何认证信息时，才尝试使用本机默认 SSH 密钥
+        if (!hasPrivateKey && !hasPassword) {
+            defaultKeyPath = getDefaultSshKeyPath();
             if (defaultKeyPath != null) {
                 try {
                     jsch.addIdentity(defaultKeyPath);
-                    hasAuth = true;
                     log.debug("Using default SSH key: {} for {}", defaultKeyPath, key.toLabel());
                 } catch (Exception e) {
                     log.debug("Failed to load default SSH key for {}: {}", key.toLabel(), e.getMessage());
@@ -92,18 +99,18 @@ public class SshSessionFactory extends BaseKeyedPooledObjectFactory<SshSessionKe
         // 创建 session
         Session session = jsch.getSession(key.getUsername(), key.getHost(), key.getPort());
 
-        // 方式3：使用密码认证
-        if (remoteConfig != null && remoteConfig.getPassword() != null
-                && !remoteConfig.getPassword().isBlank()) {
+        // 用户未提供私钥但提供了密码：仅使用密码认证
+        if (!hasPrivateKey && hasPassword) {
             String password = cryptoUtils.isEncrypted(remoteConfig.getPassword())
                     ? cryptoUtils.decrypt(remoteConfig.getPassword())
                     : remoteConfig.getPassword();
             session.setPassword(password);
-            hasAuth = true;
+            session.setConfig("PreferredAuthentications", "password");
             log.debug("Using password authentication for SSH to {}", key.toLabel());
-        }
-
-        if (!hasAuth) {
+        } else if (hasPrivateKey || defaultKeyPath != null) {
+            // 存在私钥（用户提供或默认密钥）：优先尝试公钥认证，允许回退到密码认证以提高兼容性
+            session.setConfig("PreferredAuthentications", "publickey,password");
+        } else {
             log.warn("No SSH authentication method available for {}, connection may fail", key.toLabel());
         }
 

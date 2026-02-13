@@ -17,7 +17,18 @@ import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * SSH 远程命令执行器
@@ -32,9 +43,8 @@ import java.util.concurrent.CompletableFuture;
  * - executionTimeoutSeconds：命令执行等待结果的超时
  * <p>
  * 认证方式优先级：
- * 1. 指定私钥：使用 RemoteConfig 中的 privateKey
- * 2. 系统默认密钥：使用 ~/.ssh/id_rsa 等
- * 3. 密码登录：使用加密存储的密码
+ * 1. 用户显式提供的用户名+密码 / 私钥（二选一）
+ * 2. 未显式提供时，使用服务器本地的默认 SSH 密钥（如 ~/.ssh/id_rsa）
  */
 @Slf4j
 @Component
@@ -58,6 +68,73 @@ public class SshCommandExecutor implements CommandExecutor {
         } else {
             return executeDirectly(command, remoteConfig, timeoutSeconds);
         }
+    }
+
+    /**
+     * 直连模式下创建 SSH Session，统一处理认证优先级与指纹校验。
+     */
+    private Session createDirectSession(RemoteConfig remoteConfig, int connectTimeoutMs) throws Exception {
+        JSch jsch = new JSch();
+
+        // 指纹管理
+        if (sshPoolConfig.isHostKeyCheckEnabled()) {
+            jsch.setHostKeyRepository(new DatabaseHostKeyRepository(sshHostKeyRepository));
+            log.debug("Using database host key verification (direct mode)");
+        }
+
+        boolean hasPrivateKey = remoteConfig.getPrivateKey() != null && !remoteConfig.getPrivateKey().isBlank();
+        boolean hasPassword = remoteConfig.getPassword() != null && !remoteConfig.getPassword().isBlank();
+
+        // 优先使用用户显式提供的私钥
+        if (hasPrivateKey) {
+            String privateKey = cryptoUtils.isEncrypted(remoteConfig.getPrivateKey())
+                    ? cryptoUtils.decrypt(remoteConfig.getPrivateKey())
+                    : remoteConfig.getPrivateKey();
+            jsch.addIdentity("key", privateKey.getBytes(), null, null);
+            log.debug("Using provided private key for SSH authentication");
+        }
+
+        String defaultKeyPath = null;
+
+        // 仅当用户未提供任何认证信息时，才尝试使用系统默认 SSH 密钥（免密登录）
+        if (!hasPrivateKey && !hasPassword) {
+            defaultKeyPath = getDefaultSshKeyPath();
+            if (defaultKeyPath != null) {
+                try {
+                    jsch.addIdentity(defaultKeyPath);
+                    log.debug("Using default SSH key: {}", defaultKeyPath);
+                } catch (Exception e) {
+                    log.debug("Failed to load default SSH key: {}", e.getMessage());
+                }
+            }
+        }
+
+        Session session = jsch.getSession(
+                remoteConfig.getUsername(),
+                remoteConfig.getHost(),
+                remoteConfig.getPort() != null ? remoteConfig.getPort() : 22);
+
+        // 认证方式选择：私钥优先，其次密码，最后默认密钥
+        if (!hasPrivateKey && hasPassword) {
+            String password = cryptoUtils.isEncrypted(remoteConfig.getPassword())
+                    ? cryptoUtils.decrypt(remoteConfig.getPassword())
+                    : remoteConfig.getPassword();
+            session.setPassword(password);
+            session.setConfig("PreferredAuthentications", "password");
+            log.debug("Using password authentication for SSH");
+        } else if (hasPrivateKey || defaultKeyPath != null) {
+            // 用户提供私钥或使用默认密钥时优先尝试公钥认证，并允许回退到密码认证
+            session.setConfig("PreferredAuthentications", "publickey,password");
+        } else {
+            log.warn("No SSH authentication method available, connection may fail");
+        }
+
+        if (!sshPoolConfig.isHostKeyCheckEnabled()) {
+            session.setConfig("StrictHostKeyChecking", "no");
+        }
+        session.setTimeout(connectTimeoutMs);
+        session.connect(connectTimeoutMs);
+        return session;
     }
 
     /**
@@ -148,77 +225,18 @@ public class SshCommandExecutor implements CommandExecutor {
         Session session = null;
         ChannelExec channel = null;
 
-        // 超时分层
-        int connectTimeoutMs = sshPoolConfig.getConnectTimeoutMs();
-        int channelTimeoutMs = sshPoolConfig.getEffectiveChannelConnectTimeoutMs();
-        int execTimeoutSec = sshPoolConfig.getEffectiveExecutionTimeoutSeconds() > 0
-                ? sshPoolConfig.getEffectiveExecutionTimeoutSeconds()
-                : timeoutSeconds;
-
         try {
-            // 1. 创建 SSH 会话
-            JSch jsch = new JSch();
+            // 超时分层
+            int connectTimeoutMs = sshPoolConfig.getConnectTimeoutMs();
+            int channelTimeoutMs = sshPoolConfig.getEffectiveChannelConnectTimeoutMs();
+            int execTimeoutSec = sshPoolConfig.getEffectiveExecutionTimeoutSeconds() > 0
+                    ? sshPoolConfig.getEffectiveExecutionTimeoutSeconds()
+                    : timeoutSeconds;
 
-            // 指纹管理
-            if (sshPoolConfig.isHostKeyCheckEnabled()) {
-                jsch.setHostKeyRepository(new DatabaseHostKeyRepository(sshHostKeyRepository));
-                log.debug("Using database host key verification (direct mode)");
-            }
+            // 1. 创建 SSH 会话（包含统一的认证优先级逻辑）
+            session = createDirectSession(remoteConfig, connectTimeoutMs);
 
-            // 认证方式优先级：指定私钥 > 指定密码 > 系统默认密钥（免密登录）
-            boolean hasAuth = false;
-
-            // 方式1：使用指定的私钥
-            if (remoteConfig.getPrivateKey() != null && !remoteConfig.getPrivateKey().isBlank()) {
-                String privateKey = cryptoUtils.isEncrypted(remoteConfig.getPrivateKey())
-                        ? cryptoUtils.decrypt(remoteConfig.getPrivateKey())
-                        : remoteConfig.getPrivateKey();
-                jsch.addIdentity("key", privateKey.getBytes(), null, null);
-                hasAuth = true;
-                log.debug("Using provided private key for SSH authentication");
-            }
-
-            // 方式2：尝试使用系统默认 SSH 密钥（免密登录）
-            if (!hasAuth) {
-                String defaultKeyPath = getDefaultSshKeyPath();
-                if (defaultKeyPath != null) {
-                    try {
-                        jsch.addIdentity(defaultKeyPath);
-                        hasAuth = true;
-                        log.debug("Using default SSH key: {}", defaultKeyPath);
-                    } catch (Exception e) {
-                        log.debug("Failed to load default SSH key: {}", e.getMessage());
-                    }
-                }
-            }
-
-            // 2. 建立连接
-            session = jsch.getSession(
-                    remoteConfig.getUsername(),
-                    remoteConfig.getHost(),
-                    remoteConfig.getPort() != null ? remoteConfig.getPort() : 22);
-
-            // 方式3：使用密码认证（解密后使用）
-            if (remoteConfig.getPassword() != null && !remoteConfig.getPassword().isBlank()) {
-                String password = cryptoUtils.isEncrypted(remoteConfig.getPassword())
-                        ? cryptoUtils.decrypt(remoteConfig.getPassword())
-                        : remoteConfig.getPassword();
-                session.setPassword(password);
-                hasAuth = true;
-                log.debug("Using password authentication for SSH");
-            }
-
-            if (!hasAuth) {
-                log.warn("No SSH authentication method available, connection may fail");
-            }
-
-            if (!sshPoolConfig.isHostKeyCheckEnabled()) {
-                session.setConfig("StrictHostKeyChecking", "no");
-            }
-            session.setTimeout(connectTimeoutMs);
-            session.connect(connectTimeoutMs);
-
-            // 3. 执行命令
+            // 2. 执行命令
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command);
 
@@ -274,6 +292,117 @@ public class SshCommandExecutor implements CommandExecutor {
     public CompletableFuture<CommandExecutionResult> executeAsync(String command,
             RunCommandRequest request, int timeoutSeconds) {
         return CompletableFuture.supplyAsync(() -> execute(command, request, timeoutSeconds));
+    }
+
+    /**
+     * 流式执行 SSH 命令：在执行过程中通过 lineConsumer 逐行回调 stdout/stderr，
+     * 并通过 cancelRegistrar 注册取消回调（调用者可在需要时执行该回调以断开 channel）。
+     * 返回命令退出码。
+     */
+    public int executeStreaming(RemoteConfig remoteConfig, String command, int timeoutSeconds,
+            BiConsumer<String, String> lineConsumer,
+            Consumer<Runnable> cancelRegistrar) throws Exception {
+        long startTime = System.currentTimeMillis();
+        Session session = null;
+        ChannelExec channel = null;
+        boolean borrowed = false;
+        try {
+            int channelTimeoutMs = sshPoolConfig.getEffectiveChannelConnectTimeoutMs();
+
+            // 获取或创建 session（优先使用连接池）
+            if (sshConnectionPool.isEnabled()) {
+                session = sshConnectionPool.borrowSession(remoteConfig);
+                borrowed = true;
+            } else {
+                session = createDirectSession(remoteConfig, sshPoolConfig.getConnectTimeoutMs());
+            }
+
+            channel = (ChannelExec) session.openChannel("exec");
+            channel.setCommand(command);
+
+            // 使用管道捕获 stderr，以便可以分离读取
+            PipedOutputStream errOut = new PipedOutputStream();
+            PipedInputStream errIn = new PipedInputStream(errOut);
+            channel.setErrStream(errOut);
+
+            InputStreamReader stdoutReader = new InputStreamReader(channel.getInputStream(), StandardCharsets.UTF_8);
+            BufferedReader stdoutBuf = new BufferedReader(stdoutReader);
+            BufferedReader stderrBuf = new BufferedReader(new InputStreamReader(errIn, StandardCharsets.UTF_8));
+
+            // 注册取消回调
+            AtomicReference<ChannelExec> channelRef = new AtomicReference<>();
+            cancelRegistrar.accept(() -> {
+                ChannelExec ch = channelRef.get();
+                if (ch != null) {
+                    try {
+                        ch.disconnect();
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
+
+            channel.connect(channelTimeoutMs);
+            channelRef.set(channel);
+
+            // 启动读取线程
+            Thread outThread = new Thread(() -> {
+                try {
+                    String line;
+                    while ((line = stdoutBuf.readLine()) != null) {
+                        lineConsumer.accept("stdout", line);
+                    }
+                } catch (Exception ignored) {
+                }
+            }, "ssh-stdout-" + remoteConfig.getHost());
+
+            Thread errThread = new Thread(() -> {
+                try {
+                    String line;
+                    while ((line = stderrBuf.readLine()) != null) {
+                        lineConsumer.accept("stderr", line);
+                    }
+                } catch (Exception ignored) {
+                }
+            }, "ssh-stderr-" + remoteConfig.getHost());
+
+            outThread.start();
+            errThread.start();
+
+            long deadline = System.currentTimeMillis() + (long) timeoutSeconds * 1000;
+            while (!channel.isClosed()) {
+                if (timeoutSeconds > 0 && System.currentTimeMillis() > deadline) {
+                    channel.disconnect();
+                    throw new RuntimeException("Command execution timed out after " + timeoutSeconds + " seconds");
+                }
+                Thread.sleep(100);
+            }
+
+            // 等待读取线程结束
+            outThread.join(2000);
+            errThread.join(2000);
+
+            int exit = channel.getExitStatus();
+            return exit;
+
+        } finally {
+            if (channel != null) {
+                try {
+                    channel.disconnect();
+                } catch (Exception ignored) {
+                }
+            }
+            if (session != null) {
+                if (borrowed) {
+                    // 归还到连接池
+                    sshConnectionPool.returnSession(remoteConfig, session);
+                } else {
+                    try {
+                        session.disconnect();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
     }
 
     @Override

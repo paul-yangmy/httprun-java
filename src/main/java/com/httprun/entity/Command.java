@@ -63,14 +63,15 @@ public class Command {
      * 执行模式：LOCAL, SSH, AGENT
      */
     @Enumerated(EnumType.STRING)
-    @Column(length = 20)
+    @Column(name = "execution_mode", length = 20)
     private ExecutionMode executionMode = ExecutionMode.LOCAL;
 
     /**
      * 远程执行配置（SSH/Agent 模式使用）
+     * 使用显式 Converter 确保 host/port/username 等正确序列化与反序列化。
      */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "JSON")
+    @Convert(converter = RemoteConfigConverter.class)
+    @Column(name = "remote_config", columnDefinition = "JSON")
     private RemoteConfig remoteConfig;
 
     /**
