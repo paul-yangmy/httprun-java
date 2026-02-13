@@ -17,6 +17,7 @@ import {
   Empty,
   Tooltip,
   InputNumber,
+  Alert,
 } from 'antd';
 import {
   CloseOutlined,
@@ -36,6 +37,7 @@ export interface CommandEditorProps {
   command: HTTPRUN.CommandItem | Record<string, never>;
   onClose: () => void;
   onChange?: () => void;
+  checkNameDuplicate?: (name: string) => boolean;
 }
 
 /** 获取命令配置，兼容旧版 command 字段 */
@@ -55,6 +57,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
   onClose,
   command,
   onChange,
+  checkNameDuplicate,
 }) => {
   const [value, setValue] = useState<HTTPRUN.CommandItem>(
     (command as HTTPRUN.CommandItem) || { commandConfig: { command: '', params: [], env: [] }, remoteConfig: { host: 'localhost', port: 22 } },
@@ -79,8 +82,9 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
         host: remote.host || 'localhost',
         port: remote.port || 22,
         username: remote.username || '',
-        password: remote.password || '',
-        privateKey: remote.privateKey || '',
+        // 脱敏值不回填，保持为空
+        password: (remote.password && remote.password !== '******') ? remote.password : '',
+        privateKey: (remote.privateKey && remote.privateKey !== '******') ? remote.privateKey : '',
       });
     } else {
       form.resetFields();
@@ -92,8 +96,9 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
     }
   }, [command, form]);
 
-  const isEdit = command && 'name' in command && command.name;
-  const title = isEdit ? '编辑命令' : '添加命令';
+  const isCopyMode = !!checkNameDuplicate;
+  const isEdit = command && 'name' in command && command.name && !isCopyMode;
+  const title = isCopyMode ? '复制命令' : isEdit ? '编辑命令' : '添加命令';
 
   const handleParamAdd = useCallback(() => {
     const newValue = { ...value } as HTTPRUN.CommandItem;
@@ -187,32 +192,29 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
         const cfg = getCommandConfig(value);
         cfg.command = val.command;
         
-        // 构建远程配置
-        const remoteConfig: HTTPRUN.RemoteConfig = {
-          host: val.host || 'localhost',
-          port: val.port || 22,
-          username: val.username || '',
-          password: val.password || '',
-          privateKey: val.privateKey || '',
-        };
-        
-        // 根据 host 判断执行模式
-        const isRemote = remoteConfig.host && 
-          remoteConfig.host !== 'localhost' && 
-          remoteConfig.host !== '127.0.0.1';
-        
-        // 构建请求对象，使用 commandConfig 字段
+        // 构建请求对象，直接使用用户选择的executionMode
         const req: any = {
           name: val.name,
           description: val.description,
           commandConfig: cfg,
-          executionMode: isRemote ? 'SSH' : 'LOCAL',
-          remoteConfig: isRemote ? remoteConfig : undefined,
+          executionMode: executionMode,  // 直接使用状态中的executionMode，不再自动判断
           status: 0,
           path: `/api/run/${val.name}`,
         };
         
-        const apiCall = isEdit 
+        // 仅在 SSH 模式下添加 remoteConfig
+        if (executionMode === 'SSH') {
+          req.remoteConfig = {
+            host: val.host,
+            port: val.port || 22,
+            username: val.username,
+            // 编辑模式下，如果字段为空则不传（表示不修改）
+            password: (isEdit && !val.password) ? undefined : val.password,
+            privateKey: (isEdit && !val.privateKey) ? undefined : val.privateKey,
+          };
+        }
+        
+        const apiCall = isEdit
           ? updateCommand(val.name, req)
           : createCommand(req);
         
@@ -231,7 +233,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
       .catch(() => {
         message.warning('请填写必填信息');
       });
-  }, [form, value, onChange, onClose, isEdit]);
+  }, [form, value, onChange, onClose, isEdit, executionMode]);
 
   const cfg = getCommandConfig(value);
   const paramItems = cfg.params || [];
@@ -268,7 +270,18 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
             <Form.Item
               label="命令名称"
               name="name"
-              rules={[{ required: true, message: '请输入命令名称' }]}
+              rules={[
+                { required: true, message: '请输入命令名称' },
+                ({ getFieldValue }) => ({
+                  validator: (_, value) => {
+                    if (!value) return Promise.resolve();
+                    if (checkNameDuplicate && checkNameDuplicate(value)) {
+                      return Promise.reject(new Error('命令名称已存在，请修改'));
+                    }
+                    return Promise.resolve();
+                  },
+                }),
+              ]}
               tooltip="命令的唯一标识，用于 API 调用"
             >
               <Input placeholder="如：deploy-app" disabled={!!isEdit} />
@@ -283,15 +296,114 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
             </Form.Item>
           </div>
           
-          {/* 主机配置 */}
+          {/* 执行模式选择 */}
           <Form.Item
-            label="执行主机"
-            name="host"
-            tooltip="命令执行的目标主机，localhost 或 127.0.0.1 表示本机，其他值表示通过 SSH 远程执行"
-            initialValue="localhost"
+            label="执行模式"
+            required
+            tooltip="本地执行：在服务器本地运行命令；SSH执行：通过SSH在远程服务器运行"
           >
-            <Input placeholder="localhost（本机）或远程服务器 IP/域名" />
+            <Radio.Group 
+              value={executionMode} 
+              onChange={(e) => setExecutionMode(e.target.value)}
+            >
+              <Radio value="LOCAL">🏠 本地执行</Radio>
+              <Radio value="SSH">🔐 SSH 远程执行</Radio>
+            </Radio.Group>
           </Form.Item>
+          
+          {/* 根据执行模式显示不同配置 */}
+          {executionMode === 'SSH' ? (
+            <>
+              {isEdit && (
+                <Alert
+                  message="密码和私钥不回显"
+                  description="出于安全考虑，密码和私钥在编辑时不会显示。保持空白表示不修改，重新填写表示更新。"
+                  type="info"
+                  showIcon
+                  closable
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+              
+              <div className={styles.formGrid}>
+                <Form.Item
+                  label="主机地址"
+                  name="host"
+                  rules={[
+                    { required: true, message: '请输入主机地址' },
+                    {
+                      pattern: /^(?!localhost$|127\.0\.0\.1$|::1$)/i,
+                      message: '远程执行不能使用 localhost，请输入实际IP或域名'
+                    }
+                  ]}
+                  tooltip="远程服务器的IP地址或域名（不能是localhost）"
+                >
+                  <Input placeholder="如：192.168.1.100 或 server.example.com" />
+                </Form.Item>
+                <Form.Item
+                  label="SSH 端口"
+                  name="port"
+                  initialValue={22}
+                >
+                  <InputNumber min={1} max={65535} placeholder="22" style={{ width: '100%' }} />
+                </Form.Item>
+              </div>
+              
+              <Form.Item
+                label="用户名"
+                name="username"
+                rules={[{ required: true, message: '请输入SSH用户名' }]}
+                tooltip="远程服务器的登录用户名"
+              >
+ <Input placeholder="如：root 或 ubuntu" />
+              </Form.Item>
+              
+              <Divider plain orientation="left" style={{ margin: '16px 0' }}>认证方式（三选一）</Divider>
+              
+              <Form.Item
+                label="密码"
+                name="password"
+                tooltip="密码认证（最简单）。密码将被加密存储。"
+              >
+                <Input.Password 
+                  placeholder={isEdit ? "留空表示不修改密码" : "SSH 登录密码"} 
+                />
+              </Form.Item>
+              
+              <Form.Item
+                label="私钥"
+                name="privateKey"
+                tooltip="私钥认证（推荐）。支持 RSA、ECDSA、ED25519 等类型。"
+              >
+                <Input.TextArea
+                  rows={4}
+                  placeholder={
+                    isEdit 
+                      ? "留空表示不修改私钥" 
+                      : "粘贴 PEM 格式的私钥内容\n-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
+                  }
+                  style={{ fontFamily: 'monospace', fontSize: 12 }}
+                />
+              </Form.Item>
+              
+              <Alert
+                message="免密登录"
+                description="如果不填写密码和私钥，系统会尝试使用服务器本地的 ~/.ssh/id_rsa 等默认密钥进行认证。"
+                type="success"
+                showIcon
+                style={{ marginTop: 8, marginBottom: 16 }}
+              />
+            </>
+          ) : (
+            <Form.Item
+              label="执行位置"
+              tooltip="命令将在 HttpRun 服务器本地执行"
+            >
+              <Input value="本机 (localhost)" disabled />
+            </Form.Item>
+          )}
+          
+          <Divider />
           
           <Form.Item
             label="命令内容"
@@ -535,61 +647,6 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                   >
                     添加环境变量
                   </Button>
-                </div>
-              ),
-            },
-            {
-              key: 'ssh',
-              label: (
-                <Space>
-                  <CloudServerOutlined />
-                  <span>SSH 配置</span>
-                </Space>
-              ),
-              children: (
-                <div className={styles.sshSection}>
-                  <Card size="small" style={{ marginBottom: 16, background: '#f6ffed', border: '1px solid #b7eb8f' }}>
-                    <Text type="secondary">
-                      <strong>免密登录模式：</strong>只需填写用户名，系统会自动使用本机 ~/.ssh/id_rsa 等默认密钥进行认证
-                    </Text>
-                  </Card>
-                  <div className={styles.formGrid}>
-                    <Form.Item
-                      label="SSH 端口"
-                      name="port"
-                      initialValue={22}
-                    >
-                      <InputNumber min={1} max={65535} placeholder="22" style={{ width: '100%' }} />
-                    </Form.Item>
-                    <Form.Item
-                      label="用户名"
-                      name="username"
-                      rules={[{ required: false }]}
-                      tooltip="SSH 登录用户名，免密登录时必填"
-                    >
-                      <Input placeholder="root" />
-                    </Form.Item>
-                  </div>
-                  <Divider style={{ margin: '12px 0' }}>密码认证（可选）</Divider>
-                  <Form.Item
-                    label="密码"
-                    name="password"
-                    tooltip="密码将加密存储，仅在未配置免密登录时使用"
-                  >
-                    <Input.Password placeholder="SSH 密码（无免密登录时填写）" />
-                  </Form.Item>
-                  <Divider style={{ margin: '12px 0' }}>私钥认证（可选）</Divider>
-                  <Form.Item
-                    label="私钥"
-                    name="privateKey"
-                    tooltip="自定义私钥内容，优先级高于系统默认密钥和密码"
-                  >
-                    <Input.TextArea
-                      rows={4}
-                      placeholder="粘贴私钥内容（可选，系统会优先尝试使用本机默认密钥）"
-                      style={{ fontFamily: 'monospace', fontSize: 12 }}
-                    />
-                  </Form.Item>
                 </div>
               ),
             },

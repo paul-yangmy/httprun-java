@@ -15,13 +15,17 @@ import {
 import {
   DeleteOutlined,
   EditOutlined,
+  EllipsisOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   SearchOutlined,
   ReloadOutlined,
   ExclamationCircleOutlined,
   WarningOutlined,
+  CopyOutlined,
 } from '@ant-design/icons';
+import { Switch } from 'antd';
+import { request } from '@umijs/max';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
 import { getCommandList, deleteCommand } from '@/services/httprun';
@@ -37,6 +41,9 @@ const AdminCommand: React.FC = () => {
   const [currentCommand, setCurrentCommand] = useState<HTTPRUN.CommandItem | null>(null);
   const [editCommand, setEditCommand] = useState<HTTPRUN.CommandItem | null | Record<string, never>>(null);
   const [searchText, setSearchText] = useState<string>('');
+  const [copyCommand, setCopyCommand] = useState<HTTPRUN.CommandItem | null>(null);
+  // 检查命令名是否已存在
+  const isNameDuplicate = (name: string) => items.some(item => item.name === name);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -79,6 +86,22 @@ const AdminCommand: React.FC = () => {
         item.description.toLowerCase().includes(lowerSearch),
     );
   }, [items, searchText]);
+
+  // 切换命令状态（后端枚举为 ACTIVE / DISABLED）
+  const handleStatusChange = async (record: HTTPRUN.CommandItem, checked: boolean) => {
+    const status = checked ? 'ACTIVE' : 'DISABLED';
+    try {
+      await request('/api/admin/commands', {
+        method: 'PUT',
+        headers: { 'x-token': localStorage.getItem('token') || '', 'Content-Type': 'application/json' },
+        data: { commands: [record.name], status },
+      });
+      message.success(`命令“${record.name}”已${checked ? '启用' : '停用'}`);
+      refresh();
+    } catch (e) {
+      message.error('状态切换失败');
+    }
+  };
 
   const columns: ColumnsType<HTTPRUN.CommandItem> = [
     {
@@ -162,21 +185,24 @@ const AdminCommand: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 80,
+      width: 100,
       align: 'center',
-      render: (status: number) => (
-        <Tag color={status === 0 ? 'success' : 'default'}>
-          {status === 0 ? '启用' : '停用'}
-        </Tag>
+      render: (_: any, record: HTTPRUN.CommandItem) => (
+        <Switch
+          checked={record.status === 0 || record.status === 'ACTIVE'}
+          checkedChildren="启用"
+          unCheckedChildren="停用"
+          onChange={(checked) => handleStatusChange(record, checked)}
+        />
       ),
     },
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 160,
       fixed: 'right' as any,
       render: (_, record) => (
-        <Space size="small">
+        <Space size="small" wrap>
           <Button
             type="primary"
             size="small"
@@ -185,28 +211,35 @@ const AdminCommand: React.FC = () => {
           >
             运行
           </Button>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => setEditCommand(record)}
-          >
-            编辑
-          </Button>
           <Dropdown
             trigger={['click']}
             menu={{
               items: [
                 {
+                  key: 'edit',
+                  label: '编辑',
+                  icon: <EditOutlined />,
+                  onClick: () => setEditCommand(record),
+                },
+                {
+                  key: 'copy',
+                  label: '复制',
+                  icon: <CopyOutlined />,
+                  onClick: () => setCopyCommand(record),
+                },
+                { type: 'divider' as const },
+                {
+                  key: 'delete',
                   label: '确认删除',
-                  key: 'confirm',
                   danger: true,
+                  icon: <DeleteOutlined />,
                   onClick: () => handleDelete(record.name),
                 },
               ],
             }}
           >
-            <Button size="small" danger icon={<DeleteOutlined />}>
-              删除
+            <Button size="small" icon={<EllipsisOutlined />}>
+              更多
             </Button>
           </Dropdown>
         </Space>
@@ -229,6 +262,23 @@ const AdminCommand: React.FC = () => {
           command={editCommand as HTTPRUN.CommandItem}
           onClose={() => setEditCommand(null)}
           onChange={refresh}
+        />
+      )}
+      {/* 复制命令弹窗 */}
+      {copyCommand && (
+        <CommandEditor
+          open
+          command={{
+            ...copyCommand,
+            name: copyCommand.name + '-copy',
+          }}
+          onClose={() => setCopyCommand(null)}
+          onChange={() => {
+            setCopyCommand(null);
+            refresh();
+          }}
+          // 复制模式下校验重名
+          checkNameDuplicate={isNameDuplicate}
         />
       )}
       <Card
