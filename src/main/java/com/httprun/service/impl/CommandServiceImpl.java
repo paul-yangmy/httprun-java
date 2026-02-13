@@ -54,10 +54,12 @@ public class CommandServiceImpl implements CommandService {
 
         Command command = new Command();
         command.setName(request.getName());
-        command.setPath(request.getPath());
+        command.setPath(request.getPath() != null && !request.getPath().isBlank()
+                ? request.getPath() : "/api/run/" + request.getName());
         command.setDescription(request.getDescription());
         command.setCommandConfig(request.getCommandConfig());
-        command.setExecutionMode(request.getExecutionMode() != null ? request.getExecutionMode() : ExecutionMode.LOCAL);
+        ExecutionMode mode = request.getExecutionMode() != null ? request.getExecutionMode() : ExecutionMode.LOCAL;
+        command.setExecutionMode(mode);
         command.setRemoteConfig(encryptRemoteConfig(request.getRemoteConfig()));
         command.setGroupName(request.getGroupName());
         command.setTags(request.getTags());
@@ -93,7 +95,9 @@ public class CommandServiceImpl implements CommandService {
             command.setExecutionMode(request.getExecutionMode());
         }
         if (request.getRemoteConfig() != null) {
-            command.setRemoteConfig(encryptRemoteConfig(request.getRemoteConfig()));
+            RemoteConfig toSave = encryptOrKeepRemoteConfig(
+                    command.getRemoteConfig(), request.getRemoteConfig());
+            command.setRemoteConfig(toSave);
         }
         if (request.getGroupName() != null) {
             command.setGroupName(request.getGroupName());
@@ -156,24 +160,60 @@ public class CommandServiceImpl implements CommandService {
         String maskedCommand = rendered[1]; // 脱敏后的日志
         log.info("Executing command: {} (masked)", maskedCommand);
 
-        // 6. 选择执行器并执行
-        CommandExecutor executor = selectExecutor(command.getExecutionMode());
+        // 6. 选择执行器并执行（null 视为本地执行）
+        ExecutionMode mode = command.getExecutionMode() != null ? command.getExecutionMode() : ExecutionMode.LOCAL;
+        CommandExecutor executor = selectExecutor(mode);
         int timeout = request.getTimeout() != null ? request.getTimeout() : command.getTimeoutSeconds();
 
-        // 7. 如果是 SSH 模式，且请求中没有 remoteConfig，使用命令配置中的 remoteConfig
-        if (command.getExecutionMode() == ExecutionMode.SSH && request.getRemoteConfig() == null) {
-            request.setRemoteConfig(command.getRemoteConfig());
+        // 7. SSH 模式：必须使用命令中持久化的 remoteConfig，否则无法在远程主机执行
+        if (mode == ExecutionMode.SSH) {
+            RemoteConfig cmdRemote = command.getRemoteConfig();
+            if (cmdRemote == null || cmdRemote.getHost() == null || cmdRemote.getHost().isBlank()) {
+                return CommandExecutionResult.error("SSH 命令未配置远程主机信息，请在编辑命令中填写主机、端口、用户名等");
+            }
+            request.setRemoteConfig(cmdRemote);
         }
 
         return executor.execute(actualCommand, request, timeout);
     }
 
     private CommandExecutor selectExecutor(ExecutionMode mode) {
+        if (mode == null) {
+            return localExecutor;
+        }
         return switch (mode) {
             case SSH -> sshExecutor;
             case AGENT -> throw new UnsupportedOperationException("Agent mode not implemented");
             default -> localExecutor;
         };
+    }
+
+    /**
+     * 更新时：合并 host/port/username，仅对新填写的密码/私钥加密，已有加密值保留（避免二次加密）
+     */
+    private RemoteConfig encryptOrKeepRemoteConfig(RemoteConfig existing, RemoteConfig fromRequest) {
+        if (fromRequest == null) {
+            return existing;
+        }
+        RemoteConfig result = new RemoteConfig();
+        result.setHost(fromRequest.getHost() != null && !fromRequest.getHost().isBlank()
+                ? fromRequest.getHost() : (existing != null ? existing.getHost() : null));
+        result.setPort(fromRequest.getPort() != null ? fromRequest.getPort() : (existing != null ? existing.getPort() : null));
+        result.setUsername(fromRequest.getUsername() != null && !fromRequest.getUsername().isBlank()
+                ? fromRequest.getUsername() : (existing != null ? existing.getUsername() : null));
+        result.setSshKeyId(fromRequest.getSshKeyId() != null ? fromRequest.getSshKeyId() : (existing != null ? existing.getSshKeyId() : null));
+        result.setAgentId(fromRequest.getAgentId() != null ? fromRequest.getAgentId() : (existing != null ? existing.getAgentId() : null));
+        if (fromRequest.getPassword() != null && !fromRequest.getPassword().isBlank()) {
+            result.setPassword(cryptoUtils.encrypt(fromRequest.getPassword()));
+        } else if (existing != null && existing.getPassword() != null && !existing.getPassword().isBlank()) {
+            result.setPassword(existing.getPassword());
+        }
+        if (fromRequest.getPrivateKey() != null && !fromRequest.getPrivateKey().isBlank()) {
+            result.setPrivateKey(cryptoUtils.encrypt(fromRequest.getPrivateKey()));
+        } else if (existing != null && existing.getPrivateKey() != null && !existing.getPrivateKey().isBlank()) {
+            result.setPrivateKey(existing.getPrivateKey());
+        }
+        return result;
     }
 
     @Override
@@ -199,7 +239,8 @@ public class CommandServiceImpl implements CommandService {
         response.setDescription(command.getDescription());
         response.setStatus(command.getStatus().name());
         response.setCommandConfig(command.getCommandConfig());
-        response.setExecutionMode(command.getExecutionMode().name());
+        response.setExecutionMode(command.getExecutionMode() != null
+                ? command.getExecutionMode().name() : ExecutionMode.LOCAL.name());
         response.setRemoteConfig(maskRemoteConfig(command.getRemoteConfig()));
         response.setGroupName(command.getGroupName());
         response.setTags(command.getTags());
