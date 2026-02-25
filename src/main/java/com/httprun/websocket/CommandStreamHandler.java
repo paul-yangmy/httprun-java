@@ -6,6 +6,7 @@ import com.httprun.entity.Command;
 import com.httprun.entity.EnvVar;
 import com.httprun.entity.RemoteConfig;
 import com.httprun.enums.CommandStatus;
+import com.httprun.enums.ExecutionMode;
 import com.httprun.exception.BusinessException;
 import com.httprun.executor.CommandTemplate;
 import com.httprun.repository.CommandRepository;
@@ -133,8 +134,22 @@ public class CommandStreamHandler extends TextWebSocketHandler {
 
             // 8. 执行命令并流式输出
             int timeout = request.getTimeout() != null ? request.getTimeout() : command.getTimeoutSeconds();
-            // 如果请求中包含 remoteConfig，则使用 SSH 流式执行
-            RemoteConfig reqRemote = request.getRemoteConfig();
+            // 如果请求中包含 remoteConfig 或命令为 SSH 模式，则使用 SSH 流式执行
+            RemoteConfig resolvedRemote = request.getRemoteConfig();
+            // SSH 模式：优先使用数据库中的 remoteConfig（与非流式模式 CommandServiceImpl 保持一致）
+            if (command.getExecutionMode() == ExecutionMode.SSH) {
+                RemoteConfig cmdRemote = command.getRemoteConfig();
+                if (cmdRemote != null && cmdRemote.getHost() != null && !cmdRemote.getHost().isBlank()) {
+                    // 用命令存储的 remoteConfig 覆盖（WebSocket 请求中的 remoteConfig 通常不含认证信息）
+                    resolvedRemote = cmdRemote;
+                } else if (resolvedRemote == null || resolvedRemote.getHost() == null
+                        || resolvedRemote.getHost().isBlank()) {
+                    sendError(session, "SSH 命令未配置远程主机信息，请在编辑命令中填写主机、端口、用户名等");
+                    sendComplete(session, -1, 0);
+                    return;
+                }
+            }
+            final RemoteConfig reqRemote = resolvedRemote;
             if (reqRemote != null && reqRemote.getHost() != null && !reqRemote.getHost().isBlank()) {
                 // SSH 流式执行在独立线程中进行，注册取消回调
                 Thread t = new Thread(() -> {

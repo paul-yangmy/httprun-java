@@ -99,19 +99,35 @@ public class SshSessionFactory extends BaseKeyedPooledObjectFactory<SshSessionKe
         // 创建 session
         Session session = jsch.getSession(key.getUsername(), key.getHost(), key.getPort());
 
-        // 用户未提供私钥但提供了密码：仅使用密码认证
-        if (!hasPrivateKey && hasPassword) {
+        // 认证方式选择：严格控制优先级，避免多余的认证尝试导致 SSH_MSG_DISCONNECT Too many authentication failures
+        if (hasPassword && hasPrivateKey) {
+            // 用户同时提供了私钥和密码：先尝试公钥，失败再试密码
+            String password = cryptoUtils.isEncrypted(remoteConfig.getPassword())
+                    ? cryptoUtils.decrypt(remoteConfig.getPassword())
+                    : remoteConfig.getPassword();
+            session.setPassword(password);
+            session.setConfig("PreferredAuthentications", "publickey,password");
+            log.debug("Using publickey+password authentication for SSH to {}", key.toLabel());
+        } else if (hasPassword) {
+            // 用户只提供了密码：只使用密码认证
             String password = cryptoUtils.isEncrypted(remoteConfig.getPassword())
                     ? cryptoUtils.decrypt(remoteConfig.getPassword())
                     : remoteConfig.getPassword();
             session.setPassword(password);
             session.setConfig("PreferredAuthentications", "password");
             log.debug("Using password authentication for SSH to {}", key.toLabel());
-        } else if (hasPrivateKey || defaultKeyPath != null) {
-            // 存在私钥（用户提供或默认密钥）：优先尝试公钥认证，允许回退到密码认证以提高兼容性
-            session.setConfig("PreferredAuthentications", "publickey,password");
+        } else if (hasPrivateKey) {
+            // 用户只提供了私钥：只使用公钥认证，不回退密码（避免多余失败尝试）
+            session.setConfig("PreferredAuthentications", "publickey");
+            log.debug("Using private key authentication for SSH to {}", key.toLabel());
+        } else if (defaultKeyPath != null) {
+            // 未提供凭据，使用本机默认密钥（~/.ssh/id_rsa 等）：只尝试公钥
+            session.setConfig("PreferredAuthentications", "publickey");
+            log.debug("Using default SSH key ({}) for {}", defaultKeyPath, key.toLabel());
         } else {
-            log.warn("No SSH authentication method available for {}, connection may fail", key.toLabel());
+            // 无任何凭据：目标机器可能已配置免密（authorized_keys），只尝试公钥，避免多余认证方式
+            session.setConfig("PreferredAuthentications", "publickey");
+            log.debug("No credentials provided for {}, attempting publickey only (passwordless configured)", key.toLabel());
         }
 
         // 连接配置 — 指纹管理

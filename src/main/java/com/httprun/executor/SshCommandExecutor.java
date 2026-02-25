@@ -114,19 +114,35 @@ public class SshCommandExecutor implements CommandExecutor {
                 remoteConfig.getHost(),
                 remoteConfig.getPort() != null ? remoteConfig.getPort() : 22);
 
-        // 认证方式选择：私钥优先，其次密码，最后默认密钥
-        if (!hasPrivateKey && hasPassword) {
+        // 认证方式选择：严格控制优先级，避免多余的认证尝试导致 SSH_MSG_DISCONNECT Too many authentication failures
+        if (hasPassword && hasPrivateKey) {
+            // 同时提供了私钥和密码：先公钥，失败再密码
+            String password = cryptoUtils.isEncrypted(remoteConfig.getPassword())
+                    ? cryptoUtils.decrypt(remoteConfig.getPassword())
+                    : remoteConfig.getPassword();
+            session.setPassword(password);
+            session.setConfig("PreferredAuthentications", "publickey,password");
+            log.debug("Using publickey+password authentication for SSH (direct mode)");
+        } else if (hasPassword) {
+            // 只提供了密码：只使用密码认证
             String password = cryptoUtils.isEncrypted(remoteConfig.getPassword())
                     ? cryptoUtils.decrypt(remoteConfig.getPassword())
                     : remoteConfig.getPassword();
             session.setPassword(password);
             session.setConfig("PreferredAuthentications", "password");
-            log.debug("Using password authentication for SSH");
-        } else if (hasPrivateKey || defaultKeyPath != null) {
-            // 用户提供私钥或使用默认密钥时优先尝试公钥认证，并允许回退到密码认证
-            session.setConfig("PreferredAuthentications", "publickey,password");
+            log.debug("Using password authentication for SSH (direct mode)");
+        } else if (hasPrivateKey) {
+            // 只提供了私钥：只使用公钥认证，不回退密码
+            session.setConfig("PreferredAuthentications", "publickey");
+            log.debug("Using private key authentication for SSH (direct mode)");
+        } else if (defaultKeyPath != null) {
+            // 未提供凭据，使用本机默认密钥：只尝试公钥
+            session.setConfig("PreferredAuthentications", "publickey");
+            log.debug("Using default SSH key ({}) for direct mode", defaultKeyPath);
         } else {
-            log.warn("No SSH authentication method available, connection may fail");
+            // 无任何凭据：目标机器可能已配置免密，只尝试公钥
+            session.setConfig("PreferredAuthentications", "publickey");
+            log.debug("No credentials provided, attempting publickey only (passwordless configured, direct mode)");
         }
 
         if (!sshPoolConfig.isHostKeyCheckEnabled()) {
