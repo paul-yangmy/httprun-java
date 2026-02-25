@@ -7,7 +7,7 @@
   "scripts": {
     "analyze": "cross-env ANALYZE=1 max build",
     "biome:lint": "npx @biomejs/biome lint",
-    "build": "max build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 max build",
     "deploy": "npm run build && npm run gh-pages",
     "dev": "npm run start:dev",
     "gh-pages": "gh-pages -d dist",
@@ -36,10 +36,11 @@
   ],
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
-    "@ant-design/pro-components": "^2.8.9",
+    "@ant-design/pro-components": "^2.8.10",
     "@monaco-editor/react": "^4.7.0",
     "antd": "^6.0.0",
     "antd-style": "^3.7.0",
+    "browserslist": "^4.28.1",
     "classnames": "^2.5.1",
     "dayjs": "^1.11.13",
     "react": "^19.1.0",

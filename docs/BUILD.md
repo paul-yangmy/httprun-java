@@ -43,7 +43,7 @@ mvn clean package -DskipTests
 
 #### 仅构建后端（跳过前端）
 ```bash
-mvn clean package -DskipTests -Dfrontend-maven-plugin.skip=true
+mvn package -DskipFrontend=true
 ```
 
 ### 构建产物
