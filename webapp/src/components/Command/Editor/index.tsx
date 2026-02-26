@@ -65,6 +65,8 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
   const [form] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
   const [executionMode, setExecutionMode] = useState<HTTPRUN.ExecutionMode>('LOCAL');
+  // SSH 主机模式：fixed=固定主机, param=参数化（执行时动态传入）
+  const [hostMode, setHostMode] = useState<'fixed' | 'param'>('fixed');
 
   useEffect(() => {
     setValue(
@@ -75,11 +77,14 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
       const remote = getRemoteConfig(command as HTTPRUN.CommandItem);
       const mode = (command as HTTPRUN.CommandItem).executionMode || 'LOCAL';
       setExecutionMode(mode);
+      // 检测 host 是否为参数化模板
+      const isParamHost = remote.host && /^\{\{[^}]+\}\}$/.test(remote.host);
+      setHostMode(isParamHost ? 'param' : 'fixed');
       form.setFieldsValue({
         name: command.name,
         description: command.description,
         command: cfg.command,
-        host: remote.host || 'localhost',
+        host: isParamHost ? '' : (remote.host || 'localhost'),
         port: remote.port || 22,
         username: remote.username || '',
         // 脱敏值不回填，保持为空
@@ -89,6 +94,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
     } else {
       form.resetFields();
       setExecutionMode('LOCAL');
+      setHostMode('fixed');
       form.setFieldsValue({
         host: 'localhost',
         port: 22,
@@ -205,13 +211,15 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
         // 仅在 SSH 模式下添加 remoteConfig
         if (executionMode === 'SSH') {
           req.remoteConfig = {
-            host: val.host,
+            // 参数化模式：host 固定为 {{.host}}，执行时从 params 动态解析
+            host: hostMode === 'param' ? '{{.host}}' : val.host,
             port: val.port || 22,
             username: val.username,
             // 编辑模式下，如果字段为空则不传（表示不修改）
             password: (isEdit && !val.password) ? undefined : val.password,
             privateKey: (isEdit && !val.privateKey) ? undefined : val.privateKey,
           };
+          
         }
         
         const apiCall = isEdit
@@ -233,7 +241,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
       .catch(() => {
         message.warning('请填写必填信息');
       });
-  }, [form, value, onChange, onClose, isEdit, executionMode]);
+  }, [form, value, onChange, onClose, isEdit, executionMode, hostMode]);
 
   const cfg = getCommandConfig(value);
   const paramItems = cfg.params || [];
@@ -325,38 +333,131 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                 />
               )}
               
-              <div className={styles.formGrid}>
-                <Form.Item
-                  label="主机地址"
-                  name="host"
-                  rules={[
-                    { required: true, message: '请输入主机地址' },
-                    {
-                      pattern: /^(?!localhost$|127\.0\.0\.1$|::1$)/i,
-                      message: '远程执行不能使用 localhost，请输入实际IP或域名'
+              {/* 主机模式选择 */}
+              <Form.Item
+                label="主机模式"
+                required
+                tooltip="固定主机：配置固定 IP 地址；参数化主机：执行时动态传入，适用于批量节点执行场景"
+              >
+                <Radio.Group
+                  value={hostMode}
+                  onChange={(e) => {
+                    const mode = e.target.value as 'fixed' | 'param';
+                    setHostMode(mode);
+                    form.setFieldsValue({ host: '' });
+
+                    // 切换到参数化模式：立即向参数列表添加 host 参数（若不存在）
+                    if (mode === 'param') {
+                      setValue((prev) => {
+                        const newVal = { ...prev } as HTTPRUN.CommandItem;
+                        const cfg = newVal.commandConfig
+                          ? { ...newVal.commandConfig, params: [...(newVal.commandConfig.params || [])] }
+                          : { command: '', params: [], env: [] };
+                        const hasHostParam = cfg.params.some((p: HTTPRUN.ParamDefine) => p.name === 'host');
+                        if (!hasHostParam) {
+                          cfg.params = [
+                            { name: 'host', description: 'SSH 目标主机地址', type: 'string', defaultValue: undefined, required: true },
+                            ...cfg.params,
+                          ];
+                        }
+                        newVal.commandConfig = cfg;
+                        return newVal;
+                      });
+                    } else {
+                      // 切回固定模式：移除系统自动添加的 host 参数（描述匹配才删，避免误删用户自定义的参数）
+                      setValue((prev) => {
+                        const newVal = { ...prev } as HTTPRUN.CommandItem;
+                        const cfg = newVal.commandConfig
+                          ? { ...newVal.commandConfig, params: [...(newVal.commandConfig.params || [])] }
+                          : { command: '', params: [], env: [] };
+                        cfg.params = cfg.params.filter(
+                          (p: HTTPRUN.ParamDefine) =>
+                            !(p.name === 'host' && p.description === 'SSH 目标主机地址'),
+                        );
+                        newVal.commandConfig = cfg;
+                        return newVal;
+                      });
                     }
-                  ]}
-                  tooltip="远程服务器的IP地址或域名（不能是localhost）"
+                  }}
                 >
-                  <Input placeholder="如：192.168.1.100 或 server.example.com" />
-                </Form.Item>
+                  <Radio value="fixed">🖥️ 固定主机</Radio>
+                  <Radio value="param">🔄 参数化主机（批量节点）</Radio>
+                </Radio.Group>
+              </Form.Item>
+
+              {hostMode === 'param' ? (
+                <Alert
+                  message="参数化主机模式"
+                  description={
+                    <span>
+                      主机地址将在执行时通过 <code>host</code> 参数动态传入。
+                      系统会自动为你添加一个必填的 <strong>host</strong> 参数（不可删除）。
+                      <br />
+                      同一命令可对不同节点分别执行，无需重复配置命令。
+                      <br />
+                      <strong>注意：每次执行仅支持一台主机。</strong>若需在多台节点上执行，请对每台节点单独发起请求（可并发调用）。
+                      <br />
+                      <br />
+                      <strong>示例——依次对多台节点执行：</strong>
+                      <code style={{ display: 'block', marginTop: 4, padding: '4px 8px', background: '#f5f5f5', borderRadius: 4, whiteSpace: 'pre' }}>
+                        {'# 节点一\ncurl -X POST /api/run/命令名 -d \'{"params":[{"name":"host","value":"192.168.1.10"}]}\'\n# 节点二\ncurl -X POST /api/run/命令名 -d \'{"params":[{"name":"host","value":"192.168.1.11"}]}\''}
+                      </code>
+                    </span>
+                  }
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+              ) : (
+                <div className={styles.formGrid}>
+                  <Form.Item
+                    label="主机地址"
+                    name="host"
+                    rules={[
+                      { required: true, message: '请输入主机地址' },
+                      {
+                        validator: (_, value) => {
+                          if (!value) return Promise.resolve();
+                          if (/^(localhost|127\.0\.0\.1|::1)$/i.test(value)) {
+                            return Promise.reject('远程执行不能使用 localhost，请输入实际IP或域名');
+                          }
+                          return Promise.resolve();
+                        }
+                      }
+                    ]}
+                    tooltip="远程服务器的IP地址或域名"
+                  >
+                    <Input placeholder="如：192.168.1.100" />
+                  </Form.Item>
+                  <Form.Item
+                    label="SSH 端口"
+                    name="port"
+                    initialValue={22}
+                  >
+                    <InputNumber min={1} max={65535} placeholder="22" style={{ width: '100%' }} />
+                  </Form.Item>
+                </div>
+              )}
+
+              <div className={styles.formGrid}>
+                {hostMode === 'param' && (
+                  <Form.Item
+                    label="SSH 端口"
+                    name="port"
+                    initialValue={22}
+                  >
+                    <InputNumber min={1} max={65535} placeholder="22" style={{ width: '100%' }} />
+                  </Form.Item>
+                )}
                 <Form.Item
-                  label="SSH 端口"
-                  name="port"
-                  initialValue={22}
+                  label="用户名"
+                  name="username"
+                  rules={[{ required: true, message: '请输入SSH用户名' }]}
+                  tooltip="远程服务器的登录用户名"
                 >
-                  <InputNumber min={1} max={65535} placeholder="22" style={{ width: '100%' }} />
+                  <Input placeholder="如：root 或 ubuntu" />
                 </Form.Item>
               </div>
-              
-              <Form.Item
-                label="用户名"
-                name="username"
-                rules={[{ required: true, message: '请输入SSH用户名' }]}
-                tooltip="远程服务器的登录用户名"
-              >
- <Input placeholder="如：root 或 ubuntu" />
-              </Form.Item>
               
               <Divider plain orientation="left" style={{ margin: '16px 0' }}>认证方式（三选一）</Divider>
               
@@ -466,32 +567,52 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                 <div className={styles.paramSection}>
                   {paramItems.length > 0 ? (
                     <div className={styles.paramList}>
-                      {paramItems.map((param, i) => (
+                      {paramItems.map((param, i) => {
+                        // 参数化主机模式下，系统自动添加的 host 参数不允许删除/改名/改类型
+                        const isManagedHostParam =
+                          hostMode === 'param' &&
+                          executionMode === 'SSH' &&
+                          param.name === 'host' &&
+                          param.description === 'SSH 目标主机地址';
+                        return (
                         <Card
                           key={i}
                           size="small"
                           className={styles.paramCard}
                           extra={
-                            <Tooltip title="删除参数">
-                              <Button
-                                type="text"
-                                size="small"
-                                danger
-                                icon={<CloseOutlined />}
-                                onClick={() => handleParamRemove(i)}
-                              />
-                            </Tooltip>
+                            isManagedHostParam ? (
+                              <Tooltip title="参数化主机模式下，host 参数由系统管理，不可删除">
+                                <Tag color="blue" style={{ margin: 0 }}>系统参数</Tag>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="删除参数">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  danger
+                                  icon={<CloseOutlined />}
+                                  onClick={() => handleParamRemove(i)}
+                                />
+                              </Tooltip>
+                            )
                           }
                           title={
-                            <Input
-                              size="small"
-                              placeholder="参数名称"
-                              value={param.name}
-                              onChange={(e) =>
-                                handleParamItemChange(i, 'name', e.target.value)
-                              }
-                              style={{ width: 150 }}
-                            />
+                            isManagedHostParam ? (
+                              <Space size={4}>
+                                <Text strong style={{ fontSize: 13 }}>host</Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>(SSH 目标主机地址)</Text>
+                              </Space>
+                            ) : (
+                              <Input
+                                size="small"
+                                placeholder="参数名称"
+                                value={param.name}
+                                onChange={(e) =>
+                                  handleParamItemChange(i, 'name', e.target.value)
+                                }
+                                style={{ width: 150 }}
+                              />
+                            )
                           }
                         >
                           <div className={styles.paramForm}>
@@ -517,6 +638,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                                 value={param.type}
                                 onChange={(e) => handleParamItemChange(i, 'type', e)}
                                 style={{ width: '100%' }}
+                                disabled={isManagedHostParam}
                                 options={[
                                   { label: '字符串', value: 'string' },
                                   { label: '整数', value: 'int' },
@@ -569,7 +691,8 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                             </div>
                           </div>
                         </Card>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <Empty

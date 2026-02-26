@@ -24,6 +24,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -136,15 +137,15 @@ public class CommandStreamHandler extends TextWebSocketHandler {
             int timeout = request.getTimeout() != null ? request.getTimeout() : command.getTimeoutSeconds();
             // 如果请求中包含 remoteConfig 或命令为 SSH 模式，则使用 SSH 流式执行
             RemoteConfig resolvedRemote = request.getRemoteConfig();
-            // SSH 模式：优先使用数据库中的 remoteConfig（与非流式模式 CommandServiceImpl 保持一致）
+            // SSH 模式：使用命令中持久化的 remoteConfig，支持 host/username 参数化模板（{{.host}} 等）
             if (command.getExecutionMode() == ExecutionMode.SSH) {
                 RemoteConfig cmdRemote = command.getRemoteConfig();
-                if (cmdRemote != null && cmdRemote.getHost() != null && !cmdRemote.getHost().isBlank()) {
-                    // 用命令存储的 remoteConfig 覆盖（WebSocket 请求中的 remoteConfig 通常不含认证信息）
-                    resolvedRemote = cmdRemote;
-                } else if (resolvedRemote == null || resolvedRemote.getHost() == null
+                if (cmdRemote != null) {
+                    resolvedRemote = resolveRemoteConfigParams(cmdRemote, runRequest);
+                }
+                if (resolvedRemote == null || resolvedRemote.getHost() == null
                         || resolvedRemote.getHost().isBlank()) {
-                    sendError(session, "SSH 命令未配置远程主机信息，请在编辑命令中填写主机、端口、用户名等");
+                    sendError(session, "SSH 主机地址未提供，请在请求参数中传入 host 参数，或在命令配置中填写固定主机地址");
                     sendComplete(session, -1, 0);
                     return;
                 }
@@ -382,6 +383,50 @@ public class CommandStreamHandler extends TextWebSocketHandler {
         }
 
         return args;
+    }
+
+    /**
+     * 解析 remoteConfig 中的模板变量（host/username 支持 {{.paramName}} 格式）。
+     * 密码和私钥不做模板处理，保持安全。
+     */
+    private RemoteConfig resolveRemoteConfigParams(RemoteConfig config, RunCommandRequest request) {
+        Map<String, String> paramMap = new HashMap<>();
+        if (request.getParams() != null) {
+            request.getParams().forEach(p -> {
+                if (p.getName() != null && p.getValue() != null) {
+                    paramMap.put(p.getName(), String.valueOf(p.getValue()));
+                }
+            });
+        }
+        RemoteConfig resolved = new RemoteConfig();
+        resolved.setHost(renderSimpleTemplate(config.getHost(), paramMap));
+        resolved.setPort(config.getPort());
+        resolved.setUsername(renderSimpleTemplate(config.getUsername(), paramMap));
+        resolved.setPassword(config.getPassword());
+        resolved.setPrivateKey(config.getPrivateKey());
+        resolved.setSshKeyId(config.getSshKeyId());
+        resolved.setAgentId(config.getAgentId());
+        return resolved;
+    }
+
+    /**
+     * 简单模板渲染：将 {{.varName}} 或 {{varName}} 替换为 paramMap 中的值。
+     */
+    private String renderSimpleTemplate(String template, Map<String, String> paramMap) {
+        if (template == null || !template.contains("{{")) {
+            return template;
+        }
+        java.util.regex.Pattern pattern =
+                java.util.regex.Pattern.compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
+        java.util.regex.Matcher matcher = pattern.matcher(template);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String varName = matcher.group(1);
+            String value = paramMap.getOrDefault(varName, "");
+            matcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(value));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     /**

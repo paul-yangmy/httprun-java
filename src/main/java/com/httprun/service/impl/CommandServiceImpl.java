@@ -25,7 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -165,13 +167,18 @@ public class CommandServiceImpl implements CommandService {
         CommandExecutor executor = selectExecutor(mode);
         int timeout = request.getTimeout() != null ? request.getTimeout() : command.getTimeoutSeconds();
 
-        // 7. SSH 模式：必须使用命令中持久化的 remoteConfig，否则无法在远程主机执行
+        // 7. SSH 模式：使用命令中持久化的 remoteConfig，支持 host/username 参数化模板（{{.host}} 等）
         if (mode == ExecutionMode.SSH) {
             RemoteConfig cmdRemote = command.getRemoteConfig();
-            if (cmdRemote == null || cmdRemote.getHost() == null || cmdRemote.getHost().isBlank()) {
+            if (cmdRemote == null) {
                 return CommandExecutionResult.error("SSH 命令未配置远程主机信息，请在编辑命令中填写主机、端口、用户名等");
             }
-            request.setRemoteConfig(cmdRemote);
+            RemoteConfig resolvedRemote = resolveRemoteConfigParams(cmdRemote, request);
+            if (resolvedRemote.getHost() == null || resolvedRemote.getHost().isBlank()) {
+                return CommandExecutionResult.error(
+                        "SSH 主机地址未提供，请在请求参数中传入 host 参数，或在命令配置中填写固定主机地址");
+            }
+            request.setRemoteConfig(resolvedRemote);
         }
 
         return executor.execute(actualCommand, request, timeout);
@@ -186,6 +193,50 @@ public class CommandServiceImpl implements CommandService {
             case AGENT -> throw new UnsupportedOperationException("Agent mode not implemented");
             default -> localExecutor;
         };
+    }
+
+    /**
+     * 解析 remoteConfig 中的模板变量（host/username 支持 {{.paramName}} 格式）。
+     * 密码和私钥不做模板处理，保持安全。
+     */
+    private RemoteConfig resolveRemoteConfigParams(RemoteConfig config, RunCommandRequest request) {
+        Map<String, String> paramMap = new HashMap<>();
+        if (request.getParams() != null) {
+            request.getParams().forEach(p -> {
+                if (p.getName() != null && p.getValue() != null) {
+                    paramMap.put(p.getName(), String.valueOf(p.getValue()));
+                }
+            });
+        }
+        RemoteConfig resolved = new RemoteConfig();
+        resolved.setHost(renderSimpleTemplate(config.getHost(), paramMap));
+        resolved.setPort(config.getPort());
+        resolved.setUsername(renderSimpleTemplate(config.getUsername(), paramMap));
+        resolved.setPassword(config.getPassword());
+        resolved.setPrivateKey(config.getPrivateKey());
+        resolved.setSshKeyId(config.getSshKeyId());
+        resolved.setAgentId(config.getAgentId());
+        return resolved;
+    }
+
+    /**
+     * 简单模板渲染：将 {{.varName}} 或 {{varName}} 替换为 paramMap 中的值。
+     */
+    private String renderSimpleTemplate(String template, Map<String, String> paramMap) {
+        if (template == null || !template.contains("{{")) {
+            return template;
+        }
+        java.util.regex.Pattern pattern =
+                java.util.regex.Pattern.compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
+        java.util.regex.Matcher matcher = pattern.matcher(template);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String varName = matcher.group(1);
+            String value = paramMap.getOrDefault(varName, "");
+            matcher.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(value));
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     /**
