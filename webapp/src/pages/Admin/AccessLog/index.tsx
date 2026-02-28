@@ -29,6 +29,16 @@ import { getAccessLogList } from '@/services/httprun';
 
 const { Text } = Typography;
 
+// 尝试格式化 JSON 字符串，失败则原样返回
+const formatJson = (str: string | null | undefined): string => {
+  if (!str) return '-';
+  try {
+    return JSON.stringify(JSON.parse(str), null, 2);
+  } catch {
+    return str;
+  }
+};
+
 // 来源类型对应的图标和颜色
 const sourceConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   WEB: { icon: <GlobalOutlined />, color: 'blue', label: 'Web 浏览器' },
@@ -345,9 +355,11 @@ const AdminAccessLog: React.FC = () => {
                   borderRadius: 6,
                   margin: 0,
                   fontSize: 12,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
                 }}
               >
-                {detailModal.request || '-'}
+                {formatJson(detailModal.request)}
               </pre>
             </Descriptions.Item>
             <Descriptions.Item label="响应内容" span={2}>
@@ -360,9 +372,11 @@ const AdminAccessLog: React.FC = () => {
                   borderRadius: 6,
                   margin: 0,
                   fontSize: 12,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
                 }}
               >
-                {detailModal.response || '-'}
+                {formatJson(detailModal.response)}
               </pre>
             </Descriptions.Item>
             <Descriptions.Item label="访问时间" span={2}>
