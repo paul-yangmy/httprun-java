@@ -45,8 +45,12 @@ public class SecurityConfig {
                         .requestMatchers("/", "/index.html", "/favicon.ico").permitAll()
                         .requestMatchers("/*.js", "/*.css", "/*.json", "/*.svg", "/*.png", "/*.ico").permitAll()
                         .requestMatchers("/static/**", "/scripts/**", "/icons/**", "/assets/**").permitAll()
+                        // SPA 前端路由 - 刷新时由 Spring Security 放行，由 WebConfig 返回 index.html
                         .requestMatchers("/admin", "/admin/", "/admin/**").permitAll()
                         .requestMatchers("/token", "/token/", "/token/**").permitAll()
+                        .requestMatchers("/command", "/command/**").permitAll()
+                        .requestMatchers("/history", "/history/**").permitAll()
+                        .requestMatchers("/favorites", "/favorites/**").permitAll()
                         // 管理员接口
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // 用户接口
