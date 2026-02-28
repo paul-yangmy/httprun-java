@@ -332,7 +332,23 @@ const CodeSnippet: React.FC<CodeSnippetProps> = ({ open, command, onClose }) => 
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(code);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        // 降级方案：兼容非 HTTPS 环境
+        const textArea = document.createElement('textarea');
+        textArea.value = code;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (!success) throw new Error('execCommand copy failed');
+      }
       setCopied(true);
       message.success('代码已复制到剪贴板');
       setTimeout(() => setCopied(false), 2000);
