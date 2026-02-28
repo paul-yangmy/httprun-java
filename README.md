@@ -1,219 +1,165 @@
-# HttpRun Java
-一个基于[httprun](https://github.com/raojinlin/httprun)项目的改写: 基于Spring Boot 的企业级 HTTP API Shell 命令网关系统，支持通过 RESTful API 安全执行预定义的 Shell 命令。
+﻿# HttpRun Java
 
-## 🚀 功能特性
+HttpRun Java是一个基于[httprun](https://github.com/raojinlin/httprun)项目的改写:基于 Spring Boot 的 HTTP API Shell 命令网关，支持通过 REST API 安全执行预定义命令，提供本地/SSH 执行、Token 鉴权、审计日志、访问控制与可观测性能力。
 
-- **命令管理**: 创建、更新、删除和查询命令配置
-- **安全执行**: 基于 Token 的 API 访问控制
-- **参数模板**: 支持 `{{.variable}}` 模板语法的命令参数
-- **多执行模式**: 支持本地执行和 SSH 远程执行
-  - 本地执行：在服务器本地运行 Shell 命令
-  - SSH 远程执行：通过 SSH 在远程服务器执行命令（支持免密登录和密码认证）
-- **SSH 认证方式**: 三级认证机制，优先级为指定私钥 > 系统默认密钥 > 密码认证
-- **凭证加密**: 采用 AES-GCM 256 位加密存储 SSH 密码和私钥
-- **实时输出**: WebSocket 实时推送命令执行输出
-- **执行历史**: 服务端存储执行历史，支持查询、筛选、删除和管理员查看所有记录
-- **审计日志**: 完整的命令执行日志记录，智能过滤不必要的查询请求
-- **IP 白名单**: 支持 IP 访问限制
-- **速率限制**: 防止 API 滥用
-- **健康检查**: 内置健康检查接口
+## 核心特性
 
-## 🛠️ 技术栈
+- 命令管理: 创建、更新、启用/禁用、删除命令
+- 双执行模式: 本地执行 (`LOCAL`) + SSH 远程执行 (`SSH`)
+- 参数模板: 支持 `{{.variable}}` 模板语法
+- 安全鉴权: JWT Token、管理员/普通权限隔离
+- 敏感信息保护: SSH 密码和私钥加密存储（AES-GCM）
+- 可观测性: 健康检查、Actuator、Prometheus 指标
+- 审计日志: 请求与命令执行日志追踪
 
-- **Java 17** - LTS 版本
-- **Spring Boot 3.2.x** - 应用框架
-- **Spring Security 6.x** - 安全框架
-- **Spring WebSocket** - 实时通信
-- **Spring Data JPA** - 数据访问层
-- **MySQL 8.0** - 数据库
-- **Redis** - 缓存 (可选)
-- **Flyway** - 数据库迁移
-- **JWT** - Token 认证
-- **OpenAPI 3.0** - API 文档
-- **Docker** - 容器化部署
+## 技术栈
 
-### 项目结构
+- Java 17
+- Spring Boot 3.2.4
+- Spring Security
+- Spring Data JPA
+- Spring WebSocket
+- MySQL / SQLite / H2
+- Redis（可选）
+- Flyway
+- Springdoc OpenAPI
 
-```
-src/main/java/com/httprun/
-├── HttpRunApplication.java      # 启动类
-├── config/                      # 配置类
-│   ├── SecurityConfig.java
-│   ├── JwtConfig.java
-│   ├── SwaggerConfig.java
-│   └── ...
-├── controller/                  # 控制器
-│   ├── AuthController.java
-│   ├── AdminController.java
-│   ├── UserController.java
-│   └── HealthController.java
-├── service/                     # 服务层
-│   ├── CommandService.java
-│   ├── TokenService.java
-│   └── ...
-├── repository/                  # 数据访问层
-├── entity/                      # 实体类
-├── dto/                         # 数据传输对象
-├── executor/                    # 命令执行器
-│   ├── LocalCommandExecutor.java    # 本地命令执行
-│   └── SshCommandExecutor.java      # SSH 远程命令执行
-├── security/                    # 安全模块
-├── exception/                   # 异常处理
-├── aspect/                      # AOP 切面
-├── websocket/                   # WebSocket 实时通信
-└── util/                        # 工具类
-    └── CryptoUtils.java         # AES-GCM 加密工具
-```
-
-## 🚀 快速开始
+## 快速开始
 
 ### 环境要求
 
 - JDK 17+
 - Maven 3.8+
-- MySQL 8.0+ (生产环境)
-- Redis 7+ (可选)
-- Node.js 18+ (前端开发)
-- Docker & Docker Compose (容器化部署)
+- MySQL 8+（生产推荐）
+- Redis 7+（可选）
 
-### 本地开发
 
-#### 后端启动
+### 1) 构建项目
 
-1. **克隆项目**
+默认会构建后端并打包前端到 Jar 内。
+
 ```bash
-git clone https://github.com/paul-yangmy/httprun-java.git
-cd httprun-java
+mvn clean package -DskipTests
 ```
 
-2. **构建项目（包含前端）**
+仅构建后端（跳过前端）:
 
-   Maven构建会自动完成以下步骤：
-   - 安装 Node.js 和 npm（如果系统中不存在）
-   - 安装前端依赖（npm install）
-   - 构建前端项目（npm run build）
-   - 将前端构建产物打包进 jar 包
+```bash
+mvn clean package -DskipTests -DskipFrontend=true
+```
 
-   ```bash
-   mvn clean package -DskipTests
-   ```
+### 2) 首次启动（生成管理员 Token）
 
-   **仅构建后端（跳过前端）**：
-   ```bash
-   mvn clean package -DskipTests -Dfrontend-maven-plugin.skip=true
-   ```
-
-   **构建完成后**，jar包会包含：
-   - 后端服务（Spring Boot应用）
-   - 前端静态资源（打包在 /static 目录下）
-   
-   可以直接运行单个jar包访问完整应用。
-
-3. **使用开发模式启动**（SQLite 数据库，自动生成管理员 Token）
 ```bash
 java -jar target/httprun-java-1.0.0.jar --httprun.init-admin-token=true
 ```
 
-4. **保存控制台输出的管理员 Token**
-```
-========================================
-管理员 Token 生成成功!
-========================================
-Token ID:     1
-Token Name:   admin
-JWT Token:
-----------------------------------------
-eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiIq...
-----------------------------------------
-请保存此 Token，后续将无法再次查看完整内容!
-========================================
-```
+启动后请保存控制台输出的管理员 Token（完整值只显示一次）。
 
-5. **访问服务**
-- Web 界面: http://localhost:8081/admin
-- API 文档: http://localhost:8081/swagger-ui.html
+### 3) 访问地址
 
-#### 前端开发
+- 管理界面: http://localhost:8081/admin
+- API 文档: http://localhost:8081/swagger/index.html
+- 健康检查: http://localhost:8081/api/health
 
-**开发模式**（热更新，独立运行）：
+## 开发模式
 
-1. **进入前端目录**
-```bash
-cd webapp
-```
+默认 `dev` 配置使用 SQLite（`./httprun.db`），并禁用 Redis 自动配置。
 
-2. **安装依赖**
-```bash
-npm install
-```
-
-3. **启动开发服务器**
-```bash
-npm start
-```
-
-前端将在 http://localhost:8000 启动，并自动代理API请求到后端（8081端口）。
-
-**生产构建**：
-
-前端会在执行 `mvn package` 时自动构建并打包进jar包。如果需要单独构建前端：
+直接启动:
 
 ```bash
-cd webapp
-npm run build
+java -jar target/httprun-java-1.0.0.jar
 ```
 
-构建产物在 `webapp/dist` 目录，会在Maven构建时自动复制到jar包的 `/static` 目录。
+## 生产部署（Jar）
 
-**资源访问说明**：
-WebConfig 同时注册本地文件系统和 classpath 两个资源位置，按优先级链式查找：
-- **优先**：从本地 `webapp/dist/` 目录读取（支持开发热更新）
-- **兜底**：从 jar 包内的 `classpath:/static/` 读取（适用于所有环境）
+### 首次启动（初始化管理员 Token）
 
-### Docker 部署
+```bash
+java \
+  -DSPRING_PROFILES_ACTIVE=prod \
+  -DDB_HOST=your-db-host \
+  -DDB_PORT=3306 \
+  -DDB_USER=httprun \
+  -DDB_PASSWORD=your-db-password \
+  -DJWT_SECRET=your-32+chars-secret \
+  -jar target/httprun-java-1.0.0.jar \
+  --httprun.init-admin-token=true
+```
 
-1. **构建并启动**
+### 正式启动
+
+```bash
+java \
+  -DSPRING_PROFILES_ACTIVE=prod \
+  -DDB_HOST=your-db-host \
+  -DDB_PORT=3306 \
+  -DDB_USER=httprun \
+  -DDB_PASSWORD=your-db-password \
+  -DJWT_SECRET=your-32+chars-secret \
+  -jar target/httprun-java-1.0.0.jar
+```
+
+## Docker 部署
+
 ```bash
 docker-compose up -d
 ```
 
-2. **查看日志**
+查看日志:
+
 ```bash
 docker-compose logs -f httprun
 ```
 
-3. **启用监控** (可选)
+启用监控（Prometheus + Grafana）:
+
 ```bash
 docker-compose --profile monitoring up -d
 ```
 
-4. **指定环境** (可选)
+## 关键环境变量
+
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | 否 | 运行环境，默认 `dev` |
+| `DB_URL` | 否 | 完整 JDBC URL（设置后可忽略 DB_HOST/DB_PORT） |
+| `DB_HOST` | 否 | MySQL 主机，默认 `localhost` |
+| `DB_PORT` | 否 | MySQL 端口，默认 `3306` |
+| `DB_USER` | 否 | 数据库用户名，默认 `root` |
+| `DB_PASSWORD` | 否 | 数据库密码 |
+| `JWT_SECRET` | 生产必填 | JWT 密钥，至少 32 字符 |
+| `INIT_ADMIN_TOKEN` | 否 | 是否在启动时初始化管理员 Token |
+| `WEBAPP_BUILD_DIR` | 否 | 前端构建目录，默认 `./webapp/dist` |
+| `REDIS_HOST` | 否 | Redis 主机（启用 Redis 时） |
+| `REDIS_PORT` | 否 | Redis 端口，默认 `6379` |
+
+## 常用 API 示例
+
+### 1) 创建普通 API Token（需管理员 Token）
+
 ```bash
-# 通过环境变量覆盖 profile
-docker run -e SPRING_PROFILES_ACTIVE=dev httprun-app
-```
-
-## 📖 API 使用
-
-### 认证
-
-**管理员登录获取 JWT:**
-```bash
-curl -X POST http://localhost:8081/api/auth/login \
+curl -X POST http://localhost:8081/api/admin/token \
+  -H "Authorization: Bearer <admin_jwt>" \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{
+    "name": "runner-token",
+    "subject": "*",
+    "isAdmin": false,
+    "expiresIn": 24
+  }'
 ```
 
-### 命令管理 (需要 Admin JWT)
+### 2) 创建命令（需管理员 Token）
 
-**创建命令:**
 ```bash
-curl -X POST http://localhost:8081/api/admin/commands \
-  -H "Authorization: Bearer <jwt_token>" \
+curl -X POST http://localhost:8081/api/admin/command \
+  -H "Authorization: Bearer <admin_jwt>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "hello",
-    "description": "Hello World 命令",
+    "description": "Say hello",
     "commandTemplate": "echo Hello, {{.name}}!",
     "paramsConfig": [
       {"name": "name", "type": "string", "required": true}
@@ -223,52 +169,8 @@ curl -X POST http://localhost:8081/api/admin/commands \
   }'
 ```
 
-### Token 管理 (需要 Admin JWT)
+### 3) 执行命令（使用 API Token）
 
-**创建 API Token:**
-```bash
-curl -X POST http://localhost:8081/api/admin/tokens \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "test-token",
-    "description": "测试用 Token",
-    "allowedCommands": ["echo", "hello"],
-    "rateLimit": 100,
-    "expiresIn": 86400000
-  }'
-**创建带有 SSH 远程执行的命令:**
-```bash
-curl -X POST http://localhost:8081/api/admin/commands \
-  -H "Authorization: Bearer <jwt_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "remote-echo",
-    "description": "在远程服务器执行 echo 命令",
-    "commandTemplate": "echo Hello from {{.host}}",
-    "executionMode": "SSH",
-    "remoteConfig": {
-      "host": "192.168.1.100",
-      "port": 22,
-      "username": "root",
-      "privateKey": "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-    },
-    "paramsConfig": [
-      {"name": "host", "type": "string", "required": true}
-    ],
-    "timeout": 30000
-  }'
-```
-
-### SSH 密码和私钥处理
-
-- **敏感信息加密**: 所有 SSH 密码和私钥都使用 AES-GCM 256 位加密存储在数据库
-- **自动解密**: 执行命令时自动识别和解密加密的认证信息
-- **API 脱敏**: 返回给前端的数据中，密码和私钥字段会被脱敏为 "******"
-
-### 执行命令 (使用 API Token)
-
-**本地执行:**
 ```bash
 curl -X POST http://localhost:8081/api/run/hello \
   -H "Authorization: Bearer <api_token>" \
@@ -279,69 +181,14 @@ curl -X POST http://localhost:8081/api/run/hello \
   }'
 ```
 
-**远程 SSH 执行:**
-```bash
-curl -X POST http://localhost:8081/api/run/remote-echo \
-  -H "Authorization: Bearer <api_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "params": {"host": "192.168.1.100"},
-    "async": false
-  }'
-```
+## 安全建议
 
-## ⚙️ 配置说明
+- 生产环境必须修改 `JWT_SECRET`
+- 优先使用 HTTPS
+- 配置 IP 白名单与限流策略
+- 定期轮换 Token
+- 避免在日志中输出敏感凭据
 
-### 环境变量
-
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `SPRING_PROFILES_ACTIVE` | 激活的配置文件 | `dev`（Dockerfile 默认 `prod`） |
-| `DB_URL` | 完整数据库 JDBC URL（设置后忽略 DB_HOST/DB_PORT） | - |
-| `DB_HOST` | 数据库主机 | `localhost` |
-| `DB_PORT` | 数据库端口 | `3306` |
-| `DB_USER` | 数据库用户名 | `root` |
-| `DB_PASSWORD` | 数据库密码 | `root` |
-| `DB_DRIVER` | 数据库驱动类 | `com.mysql.cj.jdbc.Driver` |
-| `DB_POOL_MIN_IDLE` | 连接池最小空闲数 | `5` |
-| `DB_POOL_MAX_SIZE` | 连接池最大连接数 | `20` |
-| `REDIS_HOST` | Redis 主机 | `localhost` |
-| `REDIS_PORT` | Redis 端口 | `6379` |
-| `REDIS_PASSWORD` | Redis 密码 | 空 |
-| `JWT_SECRET` | JWT 密钥（生产环境必须修改） | - |
-| `INIT_ADMIN_TOKEN` | 启动时是否初始化管理员 Token | `false` |
-| `WEBAPP_BUILD_DIR` | 前端构建产物目录 | `./webapp/dist` |
-| `HTTPRUN_CRYPTO_SECRET_KEY` | SSH 认证信息加密密钥 | 系统自动生成 |
-
-### SSH 认证配置
-
-**优先级：**
-1. **指定私钥** - 如果 `remoteConfig.privateKey` 不为空，优先使用此密钥
-2. **系统默认密钥** - 自动查找 `~/.ssh/id_rsa`、`~/.ssh/id_ed25519` 等默认密钥（免密登录）
-3. **密码认证** - 如果前两者都失败，使用 `remoteConfig.password` 进行密码认证
-
-**私钥格式：**
-- 支持 RSA、ECDSA、EdDSA 格式的 OpenSSH 格式私钥
-- 可通过前端 Monaco Editor 编辑或粘贴
-- 敏感信息自动加密存储
-
-## 🔒 安全说明
-
-1. **生产环境必须修改 JWT_SECRET**
-2. **SSH 密钥和密码自动使用 AES-GCM 加密存储**
-3. **建议配置 HTTPS**
-4. **配置 IP 白名单限制访问**
-5. **定期轮换 API Token**
-6. **不要在日志中输出未脱敏的 SSH 凭证**
-7. **SSH 私钥推荐使用无密码密钥或使用 SSH Agent**
-
-## 📊 监控
-
-- **健康检查**: `GET /api/health` - 返回系统运行状态
-- **应用信息**: `GET /api/info` - 返回应用名称、版本和描述
-- **Prometheus 指标**: `GET /actuator/prometheus`
-- **Grafana 仪表盘**: `http://localhost:3000` (需启用 monitoring profile)
-
-## 📝 许可证
+## 许可证
 
 MIT License
