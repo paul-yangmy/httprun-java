@@ -21,7 +21,7 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-components';
-import { getCommandList } from '@/services/httprun';
+import { getUserCommandList } from '@/services/httprun';
 import CommandExecutor from '@/components/Command/Executor';
 
 const { Text } = Typography;
@@ -108,8 +108,8 @@ const CommandFavorites: React.FC = () => {
         return;
       }
 
-      // 获取所有命令列表
-      const allCommands = await getCommandList();
+      // 获取所有命令列表（使用用户权限接口，避免非管理员收到403）
+      const allCommands = await getUserCommandList();
 
       // 匹配收藏的命令
       const favoriteCommands: FavoriteCommandItem[] = [];

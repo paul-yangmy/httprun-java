@@ -169,3 +169,60 @@ ol {
     max-width: 1600px;
   }
 }
+
+// ===== 全局溢出防护 =====
+
+// Alert 描述内容：防止长文本/代码块超出蓝色 Alert 边框
+.ant-alert-description {
+  word-break: break-word;
+  overflow-wrap: break-word;
+
+  // Alert 内部 code/pre 块：始终允许滚动而非溢出
+  code {
+    display: block;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-x: auto;
+    max-width: 100%;
+    margin: 4px 0 0;
+  }
+}
+
+// Card 内容区：使用 min-width: 0 而非 overflow: hidden，避免裁剪下拉菜单等浮层
+.ant-card-body {
+  min-width: 0;
+
+  // 卡片内行内 code 元素：超出时截断（配合 ellipsis 列）
+  code {
+    max-width: 100%;
+    vertical-align: middle;
+  }
+}
+
+// Descriptions 内部 code 元素：防止长路径溢出单元格
+.ant-descriptions-item-content {
+  word-break: break-all;
+  overflow-wrap: break-word;
+
+  code {
+    word-break: break-all;
+  }
+}
+
+// Card header extra 区域：小屏幕下允许换行，避免遮挡标题
+.ant-card-extra {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+// Space wrap 容器：限制最大宽度防止溢出父容器
+.ant-space-wrap {
+  max-width: 100%;
+}

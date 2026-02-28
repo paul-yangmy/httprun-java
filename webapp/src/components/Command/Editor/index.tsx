@@ -399,7 +399,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
                       <br />
                       <br />
                       <strong>示例——依次对多台节点执行：</strong>
-                      <code style={{ display: 'block', marginTop: 4, padding: '4px 8px', background: '#f5f5f5', borderRadius: 4, whiteSpace: 'pre' }}>
+                      <code style={{ display: 'block', marginTop: 4, padding: '4px 8px', background: '#f5f5f5', borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowX: 'auto', maxWidth: '100%' }}>
                         {'# 节点一\ncurl -X POST /api/run/命令名 -d \'{"params":[{"name":"host","value":"192.168.1.10"}]}\'\n# 节点二\ncurl -X POST /api/run/命令名 -d \'{"params":[{"name":"host","value":"192.168.1.11"}]}\''}
                       </code>
                     </span>
