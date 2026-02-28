@@ -202,7 +202,8 @@
                 <version>${frontend-maven-plugin.version}</version>
                 <configuration>
                     <workingDirectory>webapp</workingDirectory>
-                    <installDirectory>${project.build.directory}</installDirectory>
+                    <!-- 安装到 target/ 外部，避免 mvn clean 因 Windows 文件锁删除 node.exe 失败 -->
+                    <installDirectory>${project.basedir}/.node</installDirectory>
                     <skip>${skipFrontend}</skip>
                     <!-- Node 安装包国内镜像 -->
                     <nodeDownloadRoot>https://npmmirror.com/mirrors/node/</nodeDownloadRoot>

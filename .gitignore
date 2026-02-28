@@ -17,6 +17,8 @@ out/
 ####################################
 # Node / Frontend
 ####################################
+# frontend-maven-plugin 下载的 Node 运行时（安装在项目根目录避免 clean 锁文件问题）
+.node/
 node_modules/
 dist/
 build/
