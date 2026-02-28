@@ -89,11 +89,12 @@ export const errorConfig: RequestConfig = {
   requestInterceptors: [
     (config: RequestOptions) => {
       // 拦截请求配置，进行个性化处理。
-      // 注意：token 已经在 header 中设置，不需要在 URL 中添加
-      // 如果需要在 URL 中添加 token，应使用正确的格式：
-      // const token = localStorage.getItem('token') || '';
-      // const separator = config?.url?.includes('?') ? '&' : '?';
-      // const url = config?.url?.concat(`${separator}token=${token}`);
+      // 注入 X-Source 标头，标识请求来自 Webapp 前端页面
+      // 后端通过此标头区分 WEB / API / CLI 来源，避免依赖 User-Agent 误判
+      config.headers = {
+        ...config.headers,
+        'X-Source': 'WEB',
+      };
       return config;
     },
   ],
