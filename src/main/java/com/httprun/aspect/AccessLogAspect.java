@@ -65,8 +65,9 @@ public class AccessLogAspect {
         String referer = request != null ? request.getHeader("Referer") : null;
         String forwardedFor = request != null ? request.getHeader("X-Forwarded-For") : null;
 
-        // 推断请求来源
-        String source = AuditContext.inferSource(userAgent);
+        // 推断请求来源：优先信任 Webapp 前端注入的 X-Source 标头，其次依赖 User-Agent 区分 CLI 与 API
+        String xSource = request != null ? request.getHeader("X-Source") : null;
+        String source = AuditContext.inferSource(userAgent, xSource);
 
         // 获取命令名称（从路径或方法注解中提取）
         String commandName = extractCommandName(joinPoint, path);

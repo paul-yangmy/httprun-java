@@ -81,22 +81,41 @@ public class AuditContext {
     private Long duration;
 
     /**
-     * 根据User-Agent推断请求来源
+     * 根据 X-Source 请求头和 User-Agent 推断请求来源。
+     * <p>
+     * 优先级：
+     * 1. X-Source: WEB  ——— Webapp 前端页面主动标识，直接采用（最可信）
+     * 2. User-Agent 包含 curl/wget/httpie 等 CLI 关键字 ——— 命令行工具
+     * 3. User-Agent 包含 httprun-cli ——— HttpRun CLI
+     * 4. 其余情况 ——— API 调用（Postman、脚本、SDK 等）
+     * <p>
+     * 注意：不再以浏览器 UA（mozilla/chrome 等）判断 WEB，因为 Postman 等工具
+     * 有时也会携带浏览器 UA，仅依赖 X-Source 标头保证准确性。
      */
-    public static String inferSource(String userAgent) {
+    public static String inferSource(String userAgent, String xSource) {
+        // 1. 优先信任前端显式标识
+        if ("WEB".equalsIgnoreCase(xSource)) {
+            return "WEB";
+        }
         if (userAgent == null || userAgent.isEmpty()) {
             return "API";
         }
+        // 2. CLI 工具检测
         String ua = userAgent.toLowerCase();
-        if (ua.contains("mozilla") || ua.contains("chrome") || ua.contains("safari") || ua.contains("edge")) {
-            return "WEB";
-        }
         if (ua.contains("curl") || ua.contains("wget") || ua.contains("httpie") || ua.contains("postman")) {
             return "CLI";
         }
         if (ua.contains("httprun-cli")) {
             return "CLI";
         }
+        // 3. 其余均视为 API 调用（不再以浏览器 UA 判断 WEB）
         return "API";
+    }
+
+    /**
+     * 向后兼容的单参数重载（仅传 User-Agent，不含 X-Source 时默认无标识）
+     */
+    public static String inferSource(String userAgent) {
+        return inferSource(userAgent, null);
     }
 }
