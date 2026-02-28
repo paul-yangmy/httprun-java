@@ -33,9 +33,14 @@ const { Text } = Typography;
 const formatJson = (str: string | null | undefined): string => {
   if (!str) return '-';
   try {
-    return JSON.stringify(JSON.parse(str), null, 2);
+    // 格式化后将 JSON 中转义的 \n \t \r 还原为实际字符，以便 pre 正常换行显示
+    return JSON.stringify(JSON.parse(str), null, 2)
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\r/g, '');
   } catch {
-    return str;
+    // 非 JSON 内容也尝试还原转义字符
+    return str.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '');
   }
 };
 
