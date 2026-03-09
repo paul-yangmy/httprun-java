@@ -13,6 +13,7 @@ out/
 .vscode/*
 *.code-workspace
 .history/
+.github/
 
 ####################################
 # Node / Frontend

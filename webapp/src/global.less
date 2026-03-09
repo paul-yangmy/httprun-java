@@ -1,3 +1,6 @@
+// ===== Google Fonts: Fira Code (monospace) + Noto Sans SC (CJK body) =====
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
 @font-face {
   font-family: "AlibabaSans";
   font-style: normal;
@@ -39,15 +42,28 @@
     format("woff2");
 }
 
+// ===== CSS Design Tokens =====
+:root {
+  --hr-font-code:     'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  --hr-font-body:     'Noto Sans SC', AlibabaSans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --hr-color-run:     #10B981;   // terminal green - primary action
+  --hr-color-run-dim: #059669;
+  --hr-color-run-glow: rgba(16, 185, 129, 0.25);
+  --hr-color-danger:  #F43F5E;
+  --hr-color-warn:    #F59E0B;
+  --hr-radius:        8px;
+  --hr-radius-sm:     4px;
+  --hr-transition:    all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family:
-    AlibabaSans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans',
-    sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  font-family: var(--hr-font-body);
+  line-height: 1.6;
 }
 
 .colorWeak {
@@ -225,4 +241,144 @@ ol {
 // Space wrap 容器：限制最大宽度防止溢出父容器
 .ant-space-wrap {
   max-width: 100%;
+}
+
+// ===== 代码字体增强 =====
+code,
+pre,
+kbd,
+samp,
+.ant-typography code,
+.ant-typography pre,
+.ant-table td code {
+  font-family: var(--hr-font-code) !important;
+  font-size: 0.88em;
+  font-feature-settings: 'liga' 1, 'calt' 1;
+}
+
+// ===== 自定义滚动条（现代细线款）=====
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.35);
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.6);
+}
+
+// ===== 文字选中颜色 =====
+::selection {
+  background: var(--hr-color-run-glow);
+  color: inherit;
+}
+
+// ===== 全局过渡动画 =====
+.ant-btn,
+.ant-card,
+.ant-tag,
+.ant-badge,
+.ant-switch {
+  transition: var(--hr-transition) !important;
+}
+
+// 按钮 hover 微提升
+.ant-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.ant-btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+// ===== 表格行 hover 动画 =====
+.ant-table-tbody > tr {
+  transition: background 0.15s ease;
+}
+
+// ===== 卡片悬停提升 =====
+.ant-card {
+  border-radius: var(--hr-radius) !important;
+}
+
+// ===== 输入框焦点样式 =====
+.ant-input:focus,
+.ant-input-focused {
+  box-shadow: 0 0 0 2px var(--hr-color-run-glow) !important;
+}
+
+// ===== 页面进入动画 =====
+@keyframes hr-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ant-pro-page-container-children-content {
+  animation: hr-fade-up 0.3s ease both;
+}
+
+// ===== 暗色模式覆盖 =====
+[data-theme='dark'],
+.ant-layout[class*='dark'],
+body.dark-mode {
+  .ant-table-cell-fix-right {
+    background: #1d1d1d !important;
+  }
+}
+
+// 亮色模式 - 固定列背景
+[data-theme='light'] .ant-table-cell-fix-right,
+.ant-table-cell-fix-right {
+  background: #fff;
+}
+
+// ===== 标签增强 =====
+.ant-tag {
+  border-radius: var(--hr-radius-sm) !important;
+  font-family: var(--hr-font-code);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+// ===== 菜单 Logo 区域 =====
+.ant-pro-sider-logo {
+  a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+// ===== 全局 cursor-pointer =====
+.ant-btn,
+.ant-menu-item,
+.ant-dropdown-trigger,
+.ant-select,
+.ant-switch {
+  cursor: pointer;
+}
+
+// ===== prefers-reduced-motion =====
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

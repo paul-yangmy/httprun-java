@@ -16,24 +16,32 @@ function DataTable<T extends object>({
   emptyText = '暂无数据',
   emptyDescription,
   loading = false,
-  pagination = { pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` },
+  pagination = {
+    pageSize: 10,
+    showSizeChanger: true,
+    showTotal: (total) => `共 ${total} 条`,
+    size: 'default',
+    style: { marginTop: 16 },
+  },
   ...restProps
 }: DataTableProps<T>) {
   return (
     <Table<T>
       dataSource={dataSource}
       loading={loading}
+      size="middle"
       pagination={pagination}
       locale={{
         emptyText: (
           <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
-              <span>
+              <span style={{ color: '#94A3B8', fontSize: 13 }}>
                 {emptyText}
                 {emptyDescription && (
                   <>
                     <br />
-                    <span style={{ fontSize: 12, color: '#8c8c8c' }}>{emptyDescription}</span>
+                    <span style={{ fontSize: 12, color: '#64748B' }}>{emptyDescription}</span>
                   </>
                 )}
               </span>

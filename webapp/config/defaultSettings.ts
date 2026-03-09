@@ -9,8 +9,8 @@ const Settings: ProLayoutProps & {
   /** 是否默认启用实时输出（流式模式），优先级：组件可覆盖 */
   useRealtimeOutput?: boolean;
 } = {
-  navTheme: 'light',
-  colorPrimary: '#1677ff',
+  navTheme: 'realDark',
+  colorPrimary: '#10B981',
   layout: 'side',
   contentWidth: 'Fluid',
   fixedHeader: true,
@@ -19,11 +19,13 @@ const Settings: ProLayoutProps & {
   title: 'HttpRun',
   pwa: false,
   iconfontUrl: '',
-  token: {},
+  token: {
+    colorPrimary: '#10B981',
+  },
   // 响应式配置
   breakpoint: 'md' as any,
-  siderWidth: 208,
-  collapsedWidth: 48,
+  siderWidth: 220,
+  collapsedWidth: 52,
   // 默认不使用实时输出
   useRealtimeOutput: false,
 };
