@@ -1,6 +1,6 @@
 # HttpRun Java 项目发展规划
 
-> 文档更新日期：2026年2月6日
+> 文档更新日期：2026年3月10日
 
 ## 📊 当前项目状态
 
@@ -63,38 +63,86 @@
 
 ### 2. 命令管理增强
 
-**现状问题：** 缺少批量操作、分组分类、导入导出等企业级命令管理功能。
+**现状问题：** 缺少分组分类、导入导出等企业级命令管理功能，CI/CD 场景下 dev/test/prod 命令混杂，Token 无法按环境限制调用范围。
 
 | 优先级 | 功能 | 说明 | 预估工时 | 状态 |
 |--------|------|------|----------|------|
-| 🔴 高 | 命令分组/标签 | 支持按业务、环境、用途等维度对命令打标签和分组 | 2天 | ⏳ 待开发 |
+| 🔴 高 | 命令分组/标签 | 支持按业务、环境、用途等维度对命令打标签和分组 | 2天 | 🚧 开发中 |
 | 🔴 高 | 命令导入/导出 | JSON/YAML 格式批量导入导出命令配置，便于环境迁移 | 2天 | ⏳ 待开发 |
 | 🟡 中 | 命令版本管理 | 记录命令配置变更历史，支持回滚到历史版本 | 3天 | ⏳ 待开发 |
 | 🟡 中 | 命令克隆 | 一键复制现有命令创建新命令 | 0.5天 | ⏳ 待开发 |
 | 🟢 低 | 命令描述 Markdown | 命令说明字段支持 Markdown 富文本 | 1天 | ⏳ 待开发 |
 
+**命令分组/标签设计（Flyway V7）：**
+
+```sql
+ALTER TABLE commands ADD COLUMN tags VARCHAR(255) DEFAULT NULL;  -- 逗号分隔，如 prod,deploy
+ALTER TABLE tokens  ADD COLUMN allowed_tags VARCHAR(255) DEFAULT NULL;  -- Token 标签授权范围
+```
+
+Token 权限校验逻辑扩展（向后兼容）：
+```
+if token.subject == "admin"        → 全通（保持不变）
+else if token.allowed_tags 非空    → 命令 tags 与 allowed_tags 有交集则通过
+else                               → 原有 subject 命令名匹配逻辑
+```
+
+前端：命令编辑器新增标签输入框；命令列表页新增标签筛选栏；Token 配置新增 allowed_tags 字段。
+
 ### 3. 通知与回调
 
-**现状问题：** 命令执行结果无外部通知机制，无法与企业IM或CI/CD系统集成。
+**现状评估：** 当前 CI/CD 通过同步 HTTP `/run` 接口调用，命令执行 ~3s，结果直接在响应体返回，HTTP 响应已携带完整结果（exitCode/stdout/stderr）。Webhook 对调用方无法提速，暂不引入。待出现「需要主动通知外部系统」的明确场景时再启动。
 
 | 优先级 | 功能 | 说明 | 预估工时 | 状态 |
 |--------|------|------|----------|------|
-| 🔴 高 | Webhook 回调 | 命令执行完成后回调指定URL（支持自定义Header/Body模板） | 2天 | ⏳ 待开发 |
-| 🟡 中 | 钉钉/企业微信通知 | 内置钉钉机器人和企业微信推送命令执行结果 | 2天 | ⏳ 待开发 |
-| 🟡 中 | 邮件通知 | 执行失败时邮件告警（Spring Mail） | 1天 | ⏳ 待开发 |
+| ⏸️ 暂缓 | Webhook 回调 | 同步响应已含完整结果，暂无必要；保留设计，待需求明确后实现 | 2天 | ⏸️ 暂缓 |
+| 🟢 低 | 钉钉/企业微信通知 | 内置钉钉机器人和企业微信推送命令执行结果 | 2天 | ⏳ 待开发 |
+| 🟢 低 | 邮件通知 | 执行失败时邮件告警（Spring Mail） | 1天 | ⏳ 待开发 |
 | 🟢 低 | 通知规则配置 | 按命令/状态/执行人等条件配置通知策略 | 2天 | ⏳ 待开发 |
 
 ### 4. 工程质量提升
 
-**现状问题：** 当前有 8 个测试类，缺少 Controller 层集成测试和前端测试；缺乏事件驱动解耦。
+**现状问题：** `runCommand` 持有 `@Transactional` 期间 DB 连接被命令执行占用 ~3s；服务停机时命令被硬中断；缺少事件驱动解耦和 Controller 层集成测试。
 
 | 优先级 | 功能 | 说明 | 预估工时 | 状态 |
 |--------|------|------|----------|------|
-| 🔴 高 | 集成测试补充 | 补充 Controller 层集成测试、SSH 执行器 Mock 测试 | 3天 | ⏳ 待开发 |
-| 🔴 高 | Spring Events 解耦 | 引入事件驱动架构，解耦命令执行/日志/通知等模块 | 2天 | ⏳ 待开发 |
+| 🔴 高 | 执行事务范围收窄 | 将 `@Transactional` 从整个 `runCommand` 移出，仅包裹 DB 查询与写入，命令执行期间不持有连接 | 1天 | 🚧 开发中 |
+| 🔴 高 | 优雅停机 | Spring Boot `server.shutdown: graceful`，等待进行中命令完成后再退出（最多 30s） | 0.5天 | 🚧 开发中 |
+| 🔴 高 | Spring Events 解耦 | 执行完成后发布 `CommandExecutedEvent`，AccessLog 写入异步化，后续通知/重试作为独立监听器扩展 | 2天 | 🚧 开发中 |
+| 🔴 高 | 失败重试配置 | Command 表新增 `max_retries`/`retry_delay_seconds`（Flyway V8），执行器自动重试，重试信息计入 AccessLog | 2天 | 🚧 开发中 |
+| 🟡 中 | 集成测试补充 | 补充 Controller 层集成测试、SSH 执行器 Mock 测试 | 3天 | ⏳ 待开发 |
 | 🟡 中 | API 版本管理 | 引入 `/api/v1/` 路径前缀，为后续 API 演进预留空间 | 1天 | ⏳ 待开发 |
-| 🟡 中 | 优雅停机 | 停机前等待正在执行的命令完成，避免命令中断 | 1天 | ⏳ 待开发 |
 | 🟢 低 | 前端单元测试 | 补充核心组件（Executor、CodeSnippet）的 Jest 测试 | 3天 | ⏳ 待开发 |
+
+**Spring Events 解耦架构：**
+
+```
+CommandServiceImpl.runCommand()
+    ↓ 执行完成
+applicationEventPublisher.publishEvent(CommandExecutedEvent)
+    ↓
+@EventListener(async)
+├── AccessLogListener   → 异步写 DB，不阻塞响应返回
+└── RetryListener       → 判断是否重试（重试时重新发事件）
+```
+
+**优雅停机配置：**
+
+```yaml
+# application.yml
+server:
+  shutdown: graceful
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+```
+
+```yaml
+# docker-compose.yml
+services:
+  httprun:
+    stop_grace_period: 35s  # 比 Spring 等待时间多 5s
+```
 
 ---
 
@@ -288,8 +336,9 @@ HttpRun Server ◄──WebSocket──► Agent (目标机器)
 |------|------|--------|----------|------|
 | AccessLog 表优化 | 数据量大时查询慢 | 🔴 高 | 按月分表或定期归档，配合索引优化 | ⏳ 待开发 |
 | ~~SSH 连接每次新建~~ | ~~频繁连接同一主机开销大~~ | ✅ 已解决 | ~~引入 SSH 连接池（Commons Pool2）~~ | ✅ 已完成 |
-| 服务层紧耦合 | 命令执行/日志/通知等逻辑耦合 | 🟡 中 | Spring ApplicationEvent 事件驱动解耦 | ⏳ 待开发 |
+| 服务层紧耦合 | 命令执行/日志/通知等逻辑耦合 | 🟡 中 | Spring ApplicationEvent 事件驱动解耦；AccessLog 写入异步化 | 🚧 开发中 |
 | API 无版本号 | 后续接口变更无法兼容 | 🟡 中 | 引入 `/api/v1/` 前缀 | ⏳ 待开发 |
+| `@Transactional` 范围过大 | `runCommand` 持有事务期间 DB 连接被命令执行占用 ~3s | 🔴 高 | 拆分为「查询」「执行」「写日志」三段，仅前后两段持有事务 | 🚧 开发中 |
 | 缺少集成测试 | Controller 层缺少端到端测试 | 🟡 中 | MockMvc + TestContainers | ⏳ 待开发 |
 | 前端缺少测试 | 组件测试少，回归风险高 | 🟢 低 | Jest + React Testing Library | ⏳ 待开发 |
 | 前端 Bundle 优化 | 首屏加载较慢 | 🟢 低 | 路由懒加载、CDN、Tree Shaking | ⏳ 待开发 |
