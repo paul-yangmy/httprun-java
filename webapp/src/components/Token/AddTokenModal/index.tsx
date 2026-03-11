@@ -14,7 +14,7 @@ import {
   Collapse,
 } from 'antd';
 import { KeyOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
-import { createToken, getCommandList } from '@/services/httprun';
+import { createToken, getCommandList, getCommandGroups } from '@/services/httprun';
 import dayjs from 'dayjs';
 
 const { Text, Paragraph } = Typography;
@@ -44,6 +44,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
 }) => {
   const [commandList, setCommandList] = useState<HTTPRUN.CommandItem[]>([]);
   const [commandListLoading, setCommandListLoading] = useState(false);
+  const [groupNames, setGroupNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [form] = Form.useForm();
@@ -60,6 +61,9 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
         .catch(() => {
           setCommandListLoading(false);
         });
+      getCommandGroups()
+        .then((data) => setGroupNames(data || []))
+        .catch(() => {});
     }
   }, [open]);
 
@@ -77,6 +81,7 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
           isAdmin: value.isAdmin || false,
           expiresIn: value.expiresIn || 24,
           remark: value.remark,
+          allowedGroups: value.allowedGroups && value.allowedGroups.length > 0 ? value.allowedGroups : undefined,
         };
 
         // 处理时间范围限制
@@ -224,6 +229,19 @@ const AddTokenModal: React.FC<AddTokenModalProps> = ({
                 </Select.Option>
               ))}
             </Select>
+          </Form.Item>
+          <Form.Item
+            label="分组授权"
+            name="allowedGroups"
+            tooltip="选择此 Token 可执行的命令分组，该分组下所有命令均可被执行"
+          >
+            <Select
+              mode="tags"
+              placeholder="选择或输入分组名称"
+              allowClear
+              tokenSeparators={[',', ' ']}
+              options={groupNames.map((g) => ({ label: g, value: g }))}
+            />
           </Form.Item>
           <Form.Item
             label="有效时长"

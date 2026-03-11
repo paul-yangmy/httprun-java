@@ -226,6 +226,31 @@ const AdminToken: React.FC = () => {
       },
     },
     {
+      title: '分组授权',
+      dataIndex: 'allowedGroups',
+      key: 'allowedGroups',
+      width: 160,
+      responsive: ['md'] as any,
+      render: (allowedGroups: string) => {
+        const groups = allowedGroups?.split(',').filter(Boolean) || [];
+        if (groups.length === 0) return <Text type="secondary">-</Text>;
+        return (
+          <Space wrap size={[4, 4]}>
+            {groups.slice(0, 3).map((g) => (
+              <Tag key={g} color="purple">
+                {g.trim()}
+              </Tag>
+            ))}
+            {groups.length > 3 && (
+              <Tooltip title={groups.slice(3).join(', ')}>
+                <Tag>+{groups.length - 3}</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
       title: '签发时间',
       dataIndex: 'issuedAt',
       key: 'issuedAt',
