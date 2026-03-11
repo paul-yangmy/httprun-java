@@ -55,6 +55,7 @@ logs/
 ####################################
 # Maven / Backend
 ####################################
+.mvn/
 target/
 dependency-reduced-pom.xml
 buildNumber.properties

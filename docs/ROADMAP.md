@@ -1,6 +1,6 @@
 # HttpRun Java 项目发展规划
 
-> 文档更新日期：2026年3月10日
+> 文档更新日期：2026年3月11日
 
 ## 📊 当前项目状态
 
@@ -8,8 +8,8 @@
 
 | 功能模块 | 状态 | 说明 |
 |--------|------|------|
-| 命令管理 | ✅ 已完成 | 创建、更新、删除、查询命令配置 |
-| Token 认证 | ✅ 已完成 | 基于 JWT 的 API 访问控制，支持按命令授权和时间范围限制 |
+| 命令管理 | ✅ 已完成 | 创建、更新、删除、查询命令配置，支持版本历史与回滚 |
+| Token 认证 | ✅ 已完成 | 基于 JWT 的 API 访问控制，支持按命令分组授权和时间范围限制 |
 | 本地执行 | ✅ 已完成 | 在服务器本地执行 Shell 命令 |
 | SSH 远程执行 | ✅ 已完成 | 通过 SSH 在远程服务器执行命令 |
 | SSH 凭证加密 | ✅ 已完成 | AES-GCM 256位加密存储密码和私钥 |
@@ -67,27 +67,31 @@
 
 | 优先级 | 功能 | 说明 | 预估工时 | 状态 |
 |--------|------|------|----------|------|
-| 🔴 高 | 命令分组/标签 | 支持按业务、环境、用途等维度对命令打标签和分组 | 2天 | 🚧 开发中 |
-| 🔴 高 | 命令导入/导出 | JSON/YAML 格式批量导入导出命令配置，便于环境迁移 | 2天 | ⏳ 待开发 |
-| 🟡 中 | 命令版本管理 | 记录命令配置变更历史，支持回滚到历史版本 | 3天 | ⏳ 待开发 |
-| 🟡 中 | 命令克隆 | 一键复制现有命令创建新命令 | 0.5天 | ⏳ 待开发 |
-| 🟢 低 | 命令描述 Markdown | 命令说明字段支持 Markdown 富文本 | 1天 | ⏳ 待开发 |
+| 🔴 高 | 命令分组 | 支持按业务、环境、用途等维度对命令设置分组，Token 可按分组批量授权 | 2天 | ✅ 已完成 |
+| 🔴 高 | 命令导入/导出 | JSON/YAML 格式批量导入导出命令配置，便于环境迁移 | 2天 | ✅ 已完成 |
+| 🟡 中 | 命令版本管理 | 记录命令配置变更历史，支持查看历史版本和回滚 | 3天 | ✅ 已完成 |
+| 🟡 中 | 命令克隆 | 一键复制现有命令创建新命令 | 0.5天 | ✅ 已完成 |
 
-**命令分组/标签设计（Flyway V7）：**
+**命令分组设计（Flyway V8 + V9）：**
 
 ```sql
-ALTER TABLE commands ADD COLUMN tags VARCHAR(255) DEFAULT NULL;  -- 逗号分隔，如 prod,deploy
-ALTER TABLE tokens  ADD COLUMN allowed_tags VARCHAR(255) DEFAULT NULL;  -- Token 标签授权范围
+-- V8：新增分组授权字段与版本历史表
+ALTER TABLE tokens ADD COLUMN allowed_groups VARCHAR(500) DEFAULT NULL;  -- Token 分组授权范围（逗号分隔）
+CREATE TABLE command_versions (id, command_name, version, snapshot JSON, change_note, changed_at);
+
+-- V9：清理废弃的标签字段
+ALTER TABLE commands DROP COLUMN tags;
+ALTER TABLE tokens  DROP COLUMN allowed_tags;
 ```
 
-Token 权限校验逻辑扩展（向后兼容）：
+Token 权限校验逻辑（简化后）：
 ```
-if token.subject == "admin"        → 全通（保持不变）
-else if token.allowed_tags 非空    → 命令 tags 与 allowed_tags 有交集则通过
-else                               → 原有 subject 命令名匹配逻辑
+if token.isAdmin                    → 全通
+else if token.allowedGroups 非空   → 命令 groupName 在 allowedGroups 中则通过
+else                               → subject 命令名列表匹配
 ```
 
-前端：命令编辑器新增标签输入框；命令列表页新增标签筛选栏；Token 配置新增 allowed_tags 字段。
+新命令添加后若指定分组已在某 Token 的 allowedGroups 中，无需任何操作即自动生效。
 
 ### 3. 通知与回调
 
