@@ -186,6 +186,56 @@ export async function deleteCommand(
   });
 }
 
+/** 导出命令 GET /api/admin/commands/export */
+export async function exportCommands(names?: string[]) {
+  const qs = names && names.length > 0 ? `?names=${names.join(',')}` : '';
+  return request<HTTPRUN.CommandItem[]>(`/api/admin/commands/export${qs}`, {
+    method: 'GET',
+    headers: getTokenHeader(),
+  });
+}
+
+/** 导入命令 POST /api/admin/commands/import */
+export async function importCommands(
+  commands: HTTPRUN.CommandItem[],
+  mode: 'skip' | 'overwrite' = 'skip',
+) {
+  return request<HTTPRUN.CommandImportResult>('/api/admin/commands/import', {
+    method: 'POST',
+    headers: {
+      ...getTokenHeader(),
+      'Content-Type': 'application/json',
+    },
+    data: { commands, mode },
+  });
+}
+
+// ==================== Token 管理 ====================
+
+/** 获取命令分组列表 GET /api/admin/commands/groups */
+export async function getCommandGroups() {
+  return request<string[]>('/api/admin/commands/groups', {
+    method: 'GET',
+    headers: getTokenHeader(),
+  });
+}
+
+/** 获取命令版本历史 GET /api/admin/command/:name/versions */
+export async function getCommandVersions(name: string) {
+  return request<HTTPRUN.CommandVersionItem[]>(`/api/admin/command/${encodeURIComponent(name)}/versions`, {
+    method: 'GET',
+    headers: getTokenHeader(),
+  });
+}
+
+/** 回滚命令到指定版本 POST /api/admin/command/:name/rollback/:versionId */
+export async function rollbackCommandVersion(name: string, versionId: number) {
+  return request<HTTPRUN.CommandItem>(`/api/admin/command/${encodeURIComponent(name)}/rollback/${versionId}`, {
+    method: 'POST',
+    headers: getTokenHeader(),
+  });
+}
+
 // ==================== Token 管理 ====================
 
 /** 获取 Token 列表 GET /api/admin/tokens */

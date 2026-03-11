@@ -18,6 +18,7 @@ import {
   Tooltip,
   InputNumber,
   Alert,
+  AutoComplete,
 } from 'antd';
 import {
   CloseOutlined,
@@ -27,7 +28,7 @@ import {
   EditOutlined,
   CloudServerOutlined,
 } from '@ant-design/icons';
-import { createCommand, updateCommand } from '@/services/httprun';
+import { createCommand, updateCommand, getCommandGroups } from '@/services/httprun';
 import styles from './index.module.less';
 
 const { Text } = Typography;
@@ -63,10 +64,20 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
     (command as HTTPRUN.CommandItem) || { commandConfig: { command: '', params: [], env: [] }, remoteConfig: { host: 'localhost', port: 22 } },
   );
   const [form] = Form.useForm();
+  const [changeNoteForm] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
+  const [groupNames, setGroupNames] = useState<string[]>([]);
   const [executionMode, setExecutionMode] = useState<HTTPRUN.ExecutionMode>('LOCAL');
   // SSH 主机模式：fixed=固定主机, param=参数化（执行时动态传入）
   const [hostMode, setHostMode] = useState<'fixed' | 'param'>('fixed');
+  // 变更说明弹窗
+  const [changeNoteVisible, setChangeNoteVisible] = useState(false);
+  const [pendingReq, setPendingReq] = useState<any>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    getCommandGroups().then((groups) => setGroupNames(groups || [])).catch(() => {});
+  }, [open]);
 
   useEffect(() => {
     setValue(
@@ -90,6 +101,7 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
         // 脱敏值不回填，保持为空
         password: (remote.password && remote.password !== '******') ? remote.password : '',
         privateKey: (remote.privateKey && remote.privateKey !== '******') ? remote.privateKey : '',
+        groupName: (command as HTTPRUN.CommandItem).groupName || '',
       });
     } else {
       form.resetFields();
@@ -189,65 +201,82 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
     [value],
   );
 
-  const handleCreateCommand = useCallback(() => {
-    form
-      .validateFields()
+  // 构建请求对象
+  const buildReq = useCallback(() => {
+    const val = form.getFieldsValue();
+    const cfg = getCommandConfig(value);
+    cfg.command = val.command;
+    const req: any = {
+      name: val.name,
+      description: val.description,
+      commandConfig: cfg,
+      executionMode: executionMode,
+      status: 0,
+      path: `/api/run/${val.name}`,
+      // 允许发送 null 以清空分组
+      groupName: val.groupName?.trim() || null,
+    };
+    if (executionMode === 'SSH') {
+      req.remoteConfig = {
+        host: hostMode === 'param' ? '{{.host}}' : val.host,
+        port: val.port || 22,
+        username: val.username,
+        password: (isEdit && !val.password) ? undefined : val.password,
+        privateKey: (isEdit && !val.privateKey) ? undefined : val.privateKey,
+      };
+    }
+    return req;
+  }, [form, value, executionMode, hostMode, isEdit]);
+
+  // 执行实际保存
+  const doSave = useCallback((req: any) => {
+    setLoading(true);
+    const apiCall = isEdit ? updateCommand(req.name, req) : createCommand(req);
+    apiCall
       .then(() => {
-        setLoading(true);
-        const val = form.getFieldsValue();
-        const cfg = getCommandConfig(value);
-        cfg.command = val.command;
-        
-        // 构建请求对象，直接使用用户选择的executionMode
-        const req: any = {
-          name: val.name,
-          description: val.description,
-          commandConfig: cfg,
-          executionMode: executionMode,  // 直接使用状态中的executionMode，不再自动判断
-          status: 0,
-          path: `/api/run/${val.name}`,
-        };
-        
-        // 仅在 SSH 模式下添加 remoteConfig
-        if (executionMode === 'SSH') {
-          req.remoteConfig = {
-            // 参数化模式：host 固定为 {{.host}}，执行时从 params 动态解析
-            host: hostMode === 'param' ? '{{.host}}' : val.host,
-            port: val.port || 22,
-            username: val.username,
-            // 编辑模式下，如果字段为空则不传（表示不修改）
-            password: (isEdit && !val.password) ? undefined : val.password,
-            privateKey: (isEdit && !val.privateKey) ? undefined : val.privateKey,
-          };
-          
+        message.success(isEdit ? '更新成功！' : '创建成功！');
+        setLoading(false);
+        if (onChange) onChange();
+        if (onClose) onClose();
+      })
+      .catch((err) => {
+        setLoading(false);
+        message.error('操作失败: ' + err.message);
+      });
+  }, [isEdit, onChange, onClose]);
+
+  const handleCreateCommand = useCallback(() => {
+    form.validateFields()
+      .then(() => {
+        const req = buildReq();
+        if (isEdit) {
+          // 编辑模式：先弹出变更说明对话框
+          changeNoteForm.resetFields();
+          setPendingReq(req);
+          setChangeNoteVisible(true);
+        } else {
+          doSave(req);
         }
-        
-        const apiCall = isEdit
-          ? updateCommand(val.name, req)
-          : createCommand(req);
-        
-        apiCall
-          .then(() => {
-            message.success(isEdit ? '更新成功！' : '创建成功！');
-            setLoading(false);
-            if (onChange) onChange();
-            if (onClose) onClose();
-          })
-          .catch((err) => {
-            setLoading(false);
-            message.error('操作失败: ' + err.message);
-          });
       })
       .catch(() => {
         message.warning('请填写必填信息');
       });
-  }, [form, value, onChange, onClose, isEdit, executionMode, hostMode]);
+  }, [form, buildReq, isEdit, changeNoteForm, doSave]);
+
+  // 确认变更说明后提交
+  const handleChangeNoteConfirm = useCallback(() => {
+    const note = changeNoteForm.getFieldValue('changeNote')?.trim() || undefined;
+    const req = { ...pendingReq, changeNote: note };
+    setChangeNoteVisible(false);
+    doSave(req);
+  }, [changeNoteForm, pendingReq, doSave]);
 
   const cfg = getCommandConfig(value);
   const paramItems = cfg.params || [];
   const envItems = cfg.env || [];
 
   return (
+    <>
     <Modal
       open={open}
       title={
@@ -303,7 +332,24 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
               <Input placeholder="如：部署应用到生产环境" />
             </Form.Item>
           </div>
-          
+
+          <div className={styles.formGrid}>
+            <Form.Item
+              label="命令分组"
+              name="groupName"
+              tooltip="用于对命令分类管理，同时支持 Token 分组授权"
+            >
+              <AutoComplete
+                options={groupNames.map((g) => ({ value: g }))}
+                placeholder="选择或输入分组名称"
+                allowClear
+                filterOption={(input, option) =>
+                  (option?.value as string)?.toLowerCase().includes(input.toLowerCase())
+                }
+              />
+            </Form.Item>
+          </div>
+
           {/* 执行模式选择 */}
           <Form.Item
             label="执行模式"
@@ -777,6 +823,37 @@ const CommandEditor: React.FC<CommandEditorProps> = ({
         />
       </div>
     </Modal>
+
+    {/* 变更说明弹窗（仅编辑时弹出） */}
+    <Modal
+      open={changeNoteVisible}
+      title="变更说明"
+      okText="确认更新"
+      cancelText="取消"
+      onCancel={() => setChangeNoteVisible(false)}
+      onOk={handleChangeNoteConfirm}
+      confirmLoading={loading}
+      width={420}
+      destroyOnClose
+    >
+      <Form form={changeNoteForm} layout="vertical" style={{ marginTop: 12 }}>
+        <Form.Item
+          name="changeNote"
+          label="本次变更说明（可选）"
+          tooltip="简述修改内容，将记录到版本历史中"
+        >
+          <Input.TextArea
+            placeholder="如：修复参数校验逻辑、新增超时配置..."
+            rows={3}
+            maxLength={500}
+            showCount
+            allowClear
+            autoFocus
+          />
+        </Form.Item>
+      </Form>
+    </Modal>
+    </>
   );
 };
 

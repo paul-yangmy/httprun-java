@@ -63,12 +63,37 @@ declare namespace HTTPRUN {
     executionMode?: ExecutionMode;
     /** 远程执行配置 */
     remoteConfig?: RemoteConfig;
+    /** 分组名称 */
+    groupName?: string;
+    /** 短连接超时（秒） */
+    timeoutSeconds?: number;
     /** 危险等级：0=安全, 1=警告, 2=高危 */
     dangerLevel?: number;
     /** 危险警告信息 */
     dangerWarning?: string;
     created_at: string;
     updated_at: string;
+  };
+
+  /** 命令导入结果 */
+  type CommandImportResult = {
+    created: number;
+    overwritten: number;
+    skipped: number;
+    renamed: number;
+    failed: number;
+    errors: string[];
+  };
+
+  /** 命令版本历史项 */
+  type CommandVersionItem = {
+    id: number;
+    commandName: string;
+    version: number;
+    /** JSON 字符串格式的命令配置快照 */
+    snapshot: string;
+    changeNote?: string;
+    changedAt: string;
   };
 
   /** 创建命令响应 */
@@ -138,6 +163,8 @@ declare namespace HTTPRUN {
     allowedEndTime?: string;
     /** 允许执行的星期几（逗号分隔，如 "1,2,3,4,5"） */
     allowedWeekdays?: string;
+    /** 允许的命令分组范围（逗号分隔，如 "backend,devops"） */
+    allowedGroups?: string;
     /** 备注信息 */
     remark?: string;
     createdAt: string;
@@ -159,6 +186,8 @@ declare namespace HTTPRUN {
     allowedEndTime?: string;
     /** 允许执行的星期几（1=周一, ..., 7=周日） */
     allowedWeekdays?: number[];
+    /** 允许的命令分组列表（与命令 groupName 做匹配） */
+    allowedGroups?: string[];
     remark?: string;
   };
 
