@@ -138,6 +138,11 @@ public class TokenServiceImpl implements TokenService {
 
         token.setRemark(request.getRemark());
 
+        // 设置允许的命令分组范围
+        if (request.getAllowedGroups() != null && !request.getAllowedGroups().isEmpty()) {
+            token.setAllowedGroups(String.join(",", request.getAllowedGroups()));
+        }
+
         token = tokenRepository.save(token);
 
         log.info(

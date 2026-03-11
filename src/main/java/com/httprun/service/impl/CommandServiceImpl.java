@@ -1,10 +1,14 @@
 package com.httprun.service.impl;
 
+import com.httprun.dto.request.CommandImportRequest;
 import com.httprun.dto.request.CreateCommandRequest;
 import com.httprun.dto.request.RunCommandRequest;
 import com.httprun.dto.response.CommandExecutionResult;
+import com.httprun.dto.response.CommandImportResult;
 import com.httprun.dto.response.CommandResponse;
+import com.httprun.dto.response.CommandVersionResponse;
 import com.httprun.entity.Command;
+import com.httprun.entity.CommandVersion;
 import com.httprun.entity.RemoteConfig;
 import com.httprun.enums.CommandStatus;
 import com.httprun.enums.ExecutionMode;
@@ -14,16 +18,21 @@ import com.httprun.executor.CommandTemplate;
 import com.httprun.executor.LocalCommandExecutor;
 import com.httprun.executor.SshCommandExecutor;
 import com.httprun.repository.CommandRepository;
+import com.httprun.repository.CommandVersionRepository;
 import com.httprun.service.CommandService;
 import com.httprun.util.CommandSecurityValidator;
 import com.httprun.util.CryptoUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -39,11 +48,18 @@ import java.util.stream.Collectors;
 public class CommandServiceImpl implements CommandService {
 
     private final CommandRepository commandRepository;
+    private final CommandVersionRepository commandVersionRepository;
     private final CommandTemplate commandTemplate;
     private final LocalCommandExecutor localExecutor;
     private final SshCommandExecutor sshExecutor;
     private final CryptoUtils cryptoUtils;
     private final CommandSecurityValidator securityValidator;
+    private final ObjectMapper objectMapper;
+
+    // 自注入代理引用，用于 importCommands 中绕过 self-call 限制，使每条命令拥有独立事务
+    @Lazy
+    @Autowired
+    private CommandService self;
 
     @Override
     @Transactional
@@ -57,14 +73,14 @@ public class CommandServiceImpl implements CommandService {
         Command command = new Command();
         command.setName(request.getName());
         command.setPath(request.getPath() != null && !request.getPath().isBlank()
-                ? request.getPath() : "/api/run/" + request.getName());
+                ? request.getPath()
+                : "/api/run/" + request.getName());
         command.setDescription(request.getDescription());
         command.setCommandConfig(request.getCommandConfig());
         ExecutionMode mode = request.getExecutionMode() != null ? request.getExecutionMode() : ExecutionMode.LOCAL;
         command.setExecutionMode(mode);
         command.setRemoteConfig(encryptRemoteConfig(request.getRemoteConfig()));
         command.setGroupName(request.getGroupName());
-        command.setTags(request.getTags());
         command.setTimeoutSeconds(request.getTimeoutSeconds() != null ? request.getTimeoutSeconds() : 30);
 
         command = commandRepository.save(command);
@@ -82,6 +98,9 @@ public class CommandServiceImpl implements CommandService {
 
         Command command = commandRepository.findByName(name)
                 .orElseThrow(() -> new BusinessException("Command not found: " + name));
+
+        // 更新前保存版本快照
+        saveVersionSnapshot(command, request.getChangeNote());
 
         // 更新命令信息
         if (request.getPath() != null) {
@@ -101,12 +120,11 @@ public class CommandServiceImpl implements CommandService {
                     command.getRemoteConfig(), request.getRemoteConfig());
             command.setRemoteConfig(toSave);
         }
-        if (request.getGroupName() != null) {
-            command.setGroupName(request.getGroupName());
-        }
-        if (request.getTags() != null) {
-            command.setTags(request.getTags());
-        }
+        // groupName 前端始终显式传递（清空时传 null），无条件更新
+        command.setGroupName(
+                request.getGroupName() != null && !request.getGroupName().isBlank()
+                        ? request.getGroupName()
+                        : null);
         if (request.getTimeoutSeconds() != null) {
             command.setTimeoutSeconds(request.getTimeoutSeconds());
         }
@@ -135,7 +153,7 @@ public class CommandServiceImpl implements CommandService {
 
     @Override
     @Transactional
-    public CommandExecutionResult runCommand(RunCommandRequest request, String tokenSubject) {
+    public CommandExecutionResult runCommand(RunCommandRequest request, String tokenSubject, String allowedGroups) {
         // 1. 查询命令
         Command command = commandRepository.findByName(request.getName())
                 .orElseThrow(() -> new BusinessException("Command not found: " + request.getName()));
@@ -145,11 +163,25 @@ public class CommandServiceImpl implements CommandService {
             return CommandExecutionResult.error("Command is inactive");
         }
 
-        // 3. 检查权限
+        // 3. 检查权限（优先级：admin > allowedGroups > subject 命令名列表）
         if (tokenSubject != null && !tokenSubject.equals("admin")) {
-            List<String> allowedCommands = Arrays.asList(tokenSubject.split(","));
-            if (!allowedCommands.contains(command.getName())) {
-                return CommandExecutionResult.error("Permission denied");
+            boolean permitted = false;
+            if (allowedGroups != null && !allowedGroups.isBlank()) {
+                // 分组授权：命令所属分组在允许分组列表中
+                List<String> groups = Arrays.asList(allowedGroups.split(","));
+                permitted = command.getGroupName() != null && groups.contains(command.getGroupName());
+            }
+            if (!permitted) {
+                // 原有 subject 命令名列表校验（仅当 allowedGroups 未配置时）
+                if (allowedGroups == null || allowedGroups.isBlank()) {
+                    List<String> allowedCommands = Arrays.asList(tokenSubject.split(","));
+                    if (!allowedCommands.contains(command.getName())) {
+                        return CommandExecutionResult.error("Permission denied");
+                    }
+                } else {
+                    return CommandExecutionResult
+                            .error("Permission denied: command does not match token's allowed groups");
+                }
             }
         }
 
@@ -226,8 +258,8 @@ public class CommandServiceImpl implements CommandService {
         if (template == null || !template.contains("{{")) {
             return template;
         }
-        java.util.regex.Pattern pattern =
-                java.util.regex.Pattern.compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
+        java.util.regex.Pattern pattern = java.util.regex.Pattern
+                .compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
         java.util.regex.Matcher matcher = pattern.matcher(template);
         StringBuffer sb = new StringBuffer();
         while (matcher.find()) {
@@ -248,12 +280,17 @@ public class CommandServiceImpl implements CommandService {
         }
         RemoteConfig result = new RemoteConfig();
         result.setHost(fromRequest.getHost() != null && !fromRequest.getHost().isBlank()
-                ? fromRequest.getHost() : (existing != null ? existing.getHost() : null));
-        result.setPort(fromRequest.getPort() != null ? fromRequest.getPort() : (existing != null ? existing.getPort() : null));
+                ? fromRequest.getHost()
+                : (existing != null ? existing.getHost() : null));
+        result.setPort(
+                fromRequest.getPort() != null ? fromRequest.getPort() : (existing != null ? existing.getPort() : null));
         result.setUsername(fromRequest.getUsername() != null && !fromRequest.getUsername().isBlank()
-                ? fromRequest.getUsername() : (existing != null ? existing.getUsername() : null));
-        result.setSshKeyId(fromRequest.getSshKeyId() != null ? fromRequest.getSshKeyId() : (existing != null ? existing.getSshKeyId() : null));
-        result.setAgentId(fromRequest.getAgentId() != null ? fromRequest.getAgentId() : (existing != null ? existing.getAgentId() : null));
+                ? fromRequest.getUsername()
+                : (existing != null ? existing.getUsername() : null));
+        result.setSshKeyId(fromRequest.getSshKeyId() != null ? fromRequest.getSshKeyId()
+                : (existing != null ? existing.getSshKeyId() : null));
+        result.setAgentId(fromRequest.getAgentId() != null ? fromRequest.getAgentId()
+                : (existing != null ? existing.getAgentId() : null));
         if (fromRequest.getPassword() != null && !fromRequest.getPassword().isBlank()) {
             result.setPassword(cryptoUtils.encrypt(fromRequest.getPassword()));
         } else if (existing != null && existing.getPassword() != null && !existing.getPassword().isBlank()) {
@@ -282,6 +319,129 @@ public class CommandServiceImpl implements CommandService {
         commandRepository.deleteByNameIn(names);
     }
 
+    @Override
+    public List<CommandResponse> listCommandsByGroups(List<String> groups) {
+        if (groups == null || groups.isEmpty()) {
+            return listAllCommands();
+        }
+        return commandRepository.findAll().stream()
+                .filter(cmd -> cmd.getGroupName() != null && groups.contains(cmd.getGroupName()))
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> listAllGroupNames() {
+        return commandRepository.findAll().stream()
+                .map(Command::getGroupName)
+                .filter(g -> g != null && !g.isBlank())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<CreateCommandRequest> exportCommands(List<String> names) {
+        List<Command> commands;
+        if (names == null || names.isEmpty()) {
+            commands = commandRepository.findAll();
+        } else {
+            commands = commandRepository.findByNameIn(names);
+        }
+        return commands.stream()
+                .map(this::toExportRequest)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @CacheEvict(value = "commands", allEntries = true)
+    public CommandImportResult importCommands(CommandImportRequest request) {
+        boolean overwrite = "overwrite".equalsIgnoreCase(request.getMode());
+        boolean rename = "rename".equalsIgnoreCase(request.getMode());
+        int created = 0, overwritten = 0, skipped = 0, failed = 0, renamed = 0;
+        List<String> errors = new java.util.ArrayList<>();
+
+        for (CreateCommandRequest cmd : request.getCommands()) {
+            try {
+                boolean exists = commandRepository.existsByName(cmd.getName());
+                if (exists) {
+                    if (overwrite) {
+                        // 通过代理调用，使 updateCommand 的 @Transactional 生效，确保每条命令独立事务
+                        self.updateCommand(cmd.getName(), cmd);
+                        overwritten++;
+                    } else if (rename) {
+                        String newName = generateUniqueName(cmd.getName());
+                        cmd.setName(newName);
+                        cmd.setPath(null); // 清空旧 path，由 createCommand 基于新名称自动生成
+                        self.createCommand(cmd);
+                        renamed++;
+                    } else {
+                        skipped++;
+                    }
+                } else {
+                    self.createCommand(cmd);
+                    created++;
+                }
+            } catch (Exception e) {
+                failed++;
+                errors.add(cmd.getName() + ": " + e.getMessage());
+                log.warn("Failed to import command '{}': {}", cmd.getName(), e.getMessage());
+            }
+        }
+
+        log.info("Import completed: created={}, overwritten={}, skipped={}, failed={}, renamed={}",
+                created, overwritten, skipped, failed, renamed);
+        return CommandImportResult.builder()
+                .created(created)
+                .overwritten(overwritten)
+                .skipped(skipped)
+                .renamed(renamed)
+                .failed(failed)
+                .errors(errors)
+                .build();
+    }
+
+    /**
+     * 生成不重复的命令名称（在 baseName 后追加 -copy，如已存在则追加 -copy-2、-copy-3 等）
+     */
+    private String generateUniqueName(String baseName) {
+        String candidate = baseName + "-copy";
+        if (!commandRepository.existsByName(candidate)) {
+            return candidate;
+        }
+        int i = 2;
+        while (commandRepository.existsByName(candidate + "-" + i)) {
+            i++;
+        }
+        return candidate + "-" + i;
+    }
+
+    /**
+     * 将 Command 实体转为导出 DTO（密码/私钥脱敏，不暴露加密密文）
+     */
+    private CreateCommandRequest toExportRequest(Command command) {
+        CreateCommandRequest req = new CreateCommandRequest();
+        req.setName(command.getName());
+        req.setPath(command.getPath());
+        req.setDescription(command.getDescription());
+        req.setCommandConfig(command.getCommandConfig());
+        req.setExecutionMode(command.getExecutionMode());
+        req.setGroupName(command.getGroupName());
+        req.setTimeoutSeconds(command.getTimeoutSeconds());
+        // 导出远程配置时，密码和私钥置空（避免暴露加密密文，需在目标系统重新配置）
+        if (command.getRemoteConfig() != null) {
+            RemoteConfig exported = new RemoteConfig();
+            exported.setHost(command.getRemoteConfig().getHost());
+            exported.setPort(command.getRemoteConfig().getPort());
+            exported.setUsername(command.getRemoteConfig().getUsername());
+            exported.setSshKeyId(command.getRemoteConfig().getSshKeyId());
+            exported.setAgentId(command.getRemoteConfig().getAgentId());
+            // password 和 privateKey 不导出
+            req.setRemoteConfig(exported);
+        }
+        return req;
+    }
+
     private CommandResponse toResponse(Command command) {
         CommandResponse response = new CommandResponse();
         response.setId(command.getId());
@@ -291,10 +451,10 @@ public class CommandServiceImpl implements CommandService {
         response.setStatus(command.getStatus().name());
         response.setCommandConfig(command.getCommandConfig());
         response.setExecutionMode(command.getExecutionMode() != null
-                ? command.getExecutionMode().name() : ExecutionMode.LOCAL.name());
+                ? command.getExecutionMode().name()
+                : ExecutionMode.LOCAL.name());
         response.setRemoteConfig(maskRemoteConfig(command.getRemoteConfig()));
         response.setGroupName(command.getGroupName());
-        response.setTags(command.getTags());
         response.setTimeoutSeconds(command.getTimeoutSeconds());
         response.setCreatedAt(command.getCreatedAt());
         response.setUpdatedAt(command.getUpdatedAt());
@@ -357,5 +517,68 @@ public class CommandServiceImpl implements CommandService {
             masked.setPrivateKey("******");
         }
         return masked;
+    }
+
+    // ========== 版本历史 ==========
+
+    /**
+     * 在更新前保存当前命令配置到版本历史
+     */
+    private void saveVersionSnapshot(Command command, String changeNote) {
+        try {
+            CreateCommandRequest snapshot = toExportRequest(command);
+            String snapshotJson = objectMapper.writeValueAsString(snapshot);
+
+            int nextVersion = commandVersionRepository
+                    .findMaxVersionByCommandName(command.getName())
+                    .map(v -> v + 1)
+                    .orElse(1);
+
+            CommandVersion version = new CommandVersion();
+            version.setCommandName(command.getName());
+            version.setVersion(nextVersion);
+            version.setSnapshot(snapshotJson);
+            version.setChangeNote(changeNote);
+            version.setChangedAt(LocalDateTime.now());
+            commandVersionRepository.save(version);
+
+            log.debug("Saved version {} for command '{}'", nextVersion, command.getName());
+        } catch (Exception e) {
+            log.warn("Failed to save version snapshot for command '{}': {}", command.getName(), e.getMessage());
+        }
+    }
+
+    @Override
+    public List<CommandVersionResponse> listCommandVersions(String commandName) {
+        return commandVersionRepository.findByCommandNameOrderByVersionDesc(commandName)
+                .stream()
+                .map(v -> CommandVersionResponse.builder()
+                        .id(v.getId())
+                        .commandName(v.getCommandName())
+                        .version(v.getVersion())
+                        .snapshot(v.getSnapshot())
+                        .changeNote(v.getChangeNote())
+                        .changedAt(v.getChangedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "commands", allEntries = true)
+    public CommandResponse rollbackCommandVersion(String commandName, Long versionId) {
+        CommandVersion ver = commandVersionRepository.findById(versionId)
+                .orElseThrow(() -> new BusinessException("Version not found: " + versionId));
+        if (!ver.getCommandName().equals(commandName)) {
+            throw new BusinessException("Version does not belong to command: " + commandName);
+        }
+        try {
+            CreateCommandRequest request = objectMapper.readValue(ver.getSnapshot(), CreateCommandRequest.class);
+            // changeNote 记录回滚行为
+            request.setChangeNote("Rollback to version " + ver.getVersion());
+            return updateCommand(commandName, request);
+        } catch (Exception e) {
+            throw new BusinessException("Failed to rollback: " + e.getMessage());
+        }
     }
 }
