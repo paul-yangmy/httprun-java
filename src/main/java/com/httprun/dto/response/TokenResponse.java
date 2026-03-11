@@ -35,6 +35,11 @@ public class TokenResponse {
 
     private Boolean revoked;
 
+    /**
+     * 允许的命令分组范围（逗号分隔，null 表示不限制）
+     */
+    private String allowedGroups;
+
     private LocalDateTime expiresAt;
 
     private LocalDateTime lastUsedAt;

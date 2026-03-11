@@ -52,12 +52,6 @@ public class CreateCommandRequest {
     private String groupName;
 
     /**
-     * 标签
-     */
-    @Schema(description = "命令标签，多个标签用逗号分隔", example = "docker,production")
-    private String tags;
-
-    /**
      * 超时时间（秒）
      */
     private Integer timeoutSeconds;
@@ -67,4 +61,10 @@ public class CreateCommandRequest {
      */
     @Schema(description = "远程执行配置（SSH 模式使用），包含主机地址、端口、用户名、密码或密钥")
     private RemoteConfig remoteConfig;
+
+    /**
+     * 变更说明（保存版本时使用）
+     */
+    @Schema(description = "本次更新的变更说明（用于版本历史）", example = "修复参数校验逻辑")
+    private String changeNote;
 }

@@ -30,8 +30,6 @@ public class CommandResponse {
 
     private String groupName;
 
-    private String tags;
-
     private Integer timeoutSeconds;
 
     /**

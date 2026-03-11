@@ -84,6 +84,20 @@ public class Token {
     private String allowedWeekdays;
 
     /**
+     * 允许的命令标签范围（逗号分隔，如 prod,deploy）
+     * 若非空，则命令 tags 与此字段有交集方可执行；若为 null 则按 subject 命令名列表校验
+     */
+    @Column(length = 500)
+    private String allowedTags;
+
+    /**
+     * 允许的命令分组范围（逗号分隔，如 backend,devops）
+     * 若非空，则命令 groupName 在此列表中时方可执行
+     */
+    @Column(length = 500)
+    private String allowedGroups;
+
+    /**
      * 备注信息
      */
     @Column(length = 500)

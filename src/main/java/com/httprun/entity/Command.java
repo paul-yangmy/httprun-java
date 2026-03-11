@@ -81,12 +81,6 @@ public class Command {
     private String groupName;
 
     /**
-     * 标签（逗号分隔）
-     */
-    @Column(length = 200)
-    private String tags;
-
-    /**
      * 执行超时时间（秒）
      */
     @Column

@@ -64,4 +64,11 @@ public class CreateTokenRequest {
     @Schema(description = "备注信息", example = "用于 CI/CD 集成")
     @Size(max = 500, message = "备注长度不能超过500")
     private String remark;
+
+    /**
+     * 允许的命令分组范围（与命令 groupName 字段做匹配）
+     * 配置后，该 Token 可执行属于这些分组的所有命令
+     */
+    @Schema(description = "允许的命令分组列表（空表示不按分组限制）", example = "[\"backend\", \"devops\"]")
+    private List<String> allowedGroups;
 }
