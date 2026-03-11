@@ -73,12 +73,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // 4. 构建认证信息
                 boolean isAdmin = jwtTokenProvider.isAdmin(token);
                 String subject = jwtTokenProvider.getSubject(token);
+                String allowedGroups = tokenEntity.getAllowedGroups();
 
                 var authorities = isAdmin ? Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN"))
                         : Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"));
 
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        new JwtUserPrincipal(name, subject, isAdmin),
+                        new JwtUserPrincipal(name, subject, isAdmin, allowedGroups),
                         token,
                         authorities);
 

@@ -106,10 +106,23 @@ public class CommandStreamHandler extends TextWebSocketHandler {
 
             // 3. 检查权限
             if (!isAdmin && subject != null) {
-                List<String> allowedCommands = Arrays.asList(subject.split(","));
-                if (!allowedCommands.contains(command.getName())) {
-                    sendError(session, "Permission denied");
-                    return;
+                String allowedGroups = (String) session.getAttributes().get("allowedGroups");
+                boolean permitted = false;
+                if (allowedGroups != null && !allowedGroups.isBlank()) {
+                    java.util.List<String> groups = java.util.Arrays.asList(allowedGroups.split(","));
+                    permitted = command.getGroupName() != null && groups.contains(command.getGroupName());
+                }
+                if (!permitted) {
+                    if (allowedGroups == null || allowedGroups.isBlank()) {
+                        List<String> allowedCommands = Arrays.asList(subject.split(","));
+                        if (!allowedCommands.contains(command.getName())) {
+                            sendError(session, "Permission denied");
+                            return;
+                        }
+                    } else {
+                        sendError(session, "Permission denied");
+                        return;
+                    }
                 }
             }
 
@@ -416,8 +429,8 @@ public class CommandStreamHandler extends TextWebSocketHandler {
         if (template == null || !template.contains("{{")) {
             return template;
         }
-        java.util.regex.Pattern pattern =
-                java.util.regex.Pattern.compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
+        java.util.regex.Pattern pattern = java.util.regex.Pattern
+                .compile("\\{\\{\\s*\\.?([a-zA-Z_][a-zA-Z0-9_]*)\\s*}}");
         java.util.regex.Matcher matcher = pattern.matcher(template);
         StringBuffer sb = new StringBuffer();
         while (matcher.find()) {

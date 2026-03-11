@@ -1,5 +1,7 @@
 package com.httprun.websocket;
 
+import com.httprun.entity.Token;
+import com.httprun.repository.TokenRepository;
 import com.httprun.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +13,7 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * WebSocket 认证拦截器
@@ -22,10 +25,11 @@ import java.util.Map;
 public class WebSocketAuthInterceptor implements HandshakeInterceptor {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final TokenRepository tokenRepository;
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
-                                   WebSocketHandler wsHandler, Map<String, Object> attributes) {
+            WebSocketHandler wsHandler, Map<String, Object> attributes) {
         try {
             String token = extractToken(request);
             if (token == null || !jwtTokenProvider.validateToken(token)) {
@@ -43,6 +47,13 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
             attributes.put("name", name);
             attributes.put("token", token);
 
+            // 从数据库获取 allowedGroups
+            Optional<Token> tokenEntityOpt = tokenRepository.findByJwtToken(token);
+            if (tokenEntityOpt.isPresent()) {
+                Token tokenEntity = tokenEntityOpt.get();
+                attributes.put("allowedGroups", tokenEntity.getAllowedGroups());
+            }
+
             log.debug("WebSocket handshake accepted for user: {}", name);
             return true;
         } catch (Exception e) {
@@ -53,7 +64,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
 
     @Override
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
-                               WebSocketHandler wsHandler, Exception exception) {
+            WebSocketHandler wsHandler, Exception exception) {
         // 握手后处理（可选）
     }
 
