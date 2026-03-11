@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
   Dropdown,
+  Drawer,
   Table,
   Tag,
   Space,
@@ -11,6 +12,11 @@ import {
   Tooltip,
   Empty,
   message,
+  Modal,
+  Radio,
+  Upload,
+  Result,
+  Descriptions,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -23,12 +29,16 @@ import {
   ExclamationCircleOutlined,
   WarningOutlined,
   CopyOutlined,
+  ExportOutlined,
+  ImportOutlined,
+  InboxOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import { Switch } from 'antd';
 import { request } from '@umijs/max';
 import type { ColumnsType } from 'antd/es/table';
 import { PageContainer } from '@ant-design/pro-components';
-import { getCommandList, deleteCommand } from '@/services/httprun';
+import { getCommandList, deleteCommand, exportCommands, importCommands, getCommandVersions, rollbackCommandVersion } from '@/services/httprun';
 import CommandExecutor from '@/components/Command/Executor';
 import CommandEditor from '@/components/Command/Editor';
 import styles from './index.module.less';
@@ -42,6 +52,54 @@ const AdminCommand: React.FC = () => {
   const [editCommand, setEditCommand] = useState<HTTPRUN.CommandItem | null | Record<string, never>>(null);
   const [searchText, setSearchText] = useState<string>('');
   const [copyCommand, setCopyCommand] = useState<HTTPRUN.CommandItem | null>(null);
+
+  // 导入相关
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importMode, setImportMode] = useState<'rename' | 'skip' | 'overwrite'>('rename');
+  const [importResult, setImportResult] = useState<HTTPRUN.CommandImportResult | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const importFileRef = useRef<HTTPRUN.CommandItem[] | null>(null);
+
+  // 版本历史
+  const [versionHistoryVisible, setVersionHistoryVisible] = useState(false);
+  const [versionHistoryName, setVersionHistoryName] = useState<string>('');
+  const [versionList, setVersionList] = useState<HTTPRUN.CommandVersionItem[]>([]);
+  const [versionLoading, setVersionLoading] = useState(false);
+
+  const handleOpenVersionHistory = async (name: string) => {
+    setVersionHistoryName(name);
+    setVersionHistoryVisible(true);
+    setVersionLoading(true);
+    try {
+      const data = await getCommandVersions(name);
+      setVersionList(data || []);
+    } catch {
+      message.error('获取版本历史失败');
+    } finally {
+      setVersionLoading(false);
+    }
+  };
+
+  const handleRollback = (name: string, versionId: number, version: number) => {
+    Modal.confirm({
+      title: `确认回滚至版本 V${version}？`,
+      content: '回滚后当前命令配置将被该版本覆盖，且会自动保存一个当前版本的快照。',
+      okText: '确认回滚',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await rollbackCommandVersion(name, versionId);
+          message.success(`已成功回滚至版本 V${version}`);
+          setVersionHistoryVisible(false);
+          refresh();
+        } catch {
+          message.error('回滚失败');
+        }
+      },
+    });
+  };
+
   // 检查命令名是否已存在
   const isNameDuplicate = (name: string) => items.some(item => item.name === name);
 
@@ -76,6 +134,59 @@ const AdminCommand: React.FC = () => {
     },
     [refresh],
   );
+
+  // 导出全部命令为 JSON 文件
+  const handleExport = useCallback(async () => {
+    try {
+      const data = await exportCommands();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `httprun-commands-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success(`已导出 ${data.length} 条命令`);
+    } catch {
+      message.error('导出失败');
+    }
+  }, []);
+
+  // 读取上传的 JSON 文件
+  const handleFileRead = (file: File): boolean => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target?.result as string);
+        const commands = Array.isArray(parsed) ? parsed : [parsed];
+        importFileRef.current = commands;
+        setImportResult(null);
+        message.success(`已解析 ${commands.length} 条命令，点击「确认导入」开始导入`);
+      } catch {
+        message.error('JSON 格式解析失败，请检查文件内容');
+      }
+    };
+    reader.readAsText(file);
+    return false; // 阻止自动上传
+  };
+
+  // 执行导入
+  const handleImportConfirm = async () => {
+    if (!importFileRef.current) {
+      message.warning('请先选择要导入的 JSON 文件');
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const result = await importCommands(importFileRef.current, importMode);
+      setImportResult(result);
+      refresh();
+    } catch {
+      message.error('导入失败，请检查文件格式');
+    } finally {
+      setImportLoading(false);
+    }
+  };
 
   const filteredItems = useMemo(() => {
     if (!searchText) return items;
@@ -182,6 +293,16 @@ const AdminCommand: React.FC = () => {
       },
     },
     {
+      title: '分组',
+      key: 'groupName',
+      width: 110,
+      responsive: ['lg'] as any,
+      render: (_: any, record: HTTPRUN.CommandItem) => {
+        const group = record.groupName;
+        return group ? <Tag color="purple">{group}</Tag> : <span style={{ color: '#bbb' }}>-</span>;
+      },
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
@@ -193,6 +314,20 @@ const AdminCommand: React.FC = () => {
           checkedChildren="启用"
           unCheckedChildren="停用"
           onChange={(checked) => handleStatusChange(record, checked)}
+        />
+      ),
+    },
+    {
+      title: '版本',
+      key: 'version',
+      width: 65,
+      align: 'center' as any,
+      render: (_: any, record: HTTPRUN.CommandItem) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<HistoryOutlined />}
+          onClick={() => handleOpenVersionHistory(record.name)}
         />
       ),
     },
@@ -226,6 +361,26 @@ const AdminCommand: React.FC = () => {
                   label: '复制',
                   icon: <CopyOutlined />,
                   onClick: () => setCopyCommand(record),
+                },
+                {
+                  key: 'export',
+                  label: '导出',
+                  icon: <ExportOutlined />,
+                  onClick: async () => {
+                    try {
+                      const data = await exportCommands([record.name]);
+                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${record.name}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      message.success(`已导出命令「${record.name}」`);
+                    } catch {
+                      message.error('导出失败');
+                    }
+                  },
                 },
                 { type: 'divider' as const },
                 {
@@ -301,6 +456,15 @@ const AdminCommand: React.FC = () => {
             <Button icon={<ReloadOutlined />} onClick={refresh}>
               刷新
             </Button>
+            <Button icon={<ExportOutlined />} onClick={handleExport}>
+              导出
+            </Button>
+            <Button
+              icon={<ImportOutlined />}
+              onClick={() => { setImportResult(null); importFileRef.current = null; setImportModalOpen(true); }}
+            >
+              导入
+            </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -330,6 +494,123 @@ const AdminCommand: React.FC = () => {
           }}
         />
       </Card>
+
+      {/* 导入命令弹窗 */}
+      <Modal
+        title="导入命令"
+        open={importModalOpen}
+        onCancel={() => { setImportModalOpen(false); setImportResult(null); }}
+        footer={
+          importResult ? (
+            <Button onClick={() => { setImportModalOpen(false); setImportResult(null); }}>关闭</Button>
+          ) : (
+            <Space>
+              <Button onClick={() => setImportModalOpen(false)}>取消</Button>
+              <Button type="primary" loading={importLoading} onClick={handleImportConfirm}>
+                确认导入
+              </Button>
+            </Space>
+          )
+        }
+        width={540}
+      >
+        {importResult ? (
+          <Result
+            status={importResult.failed > 0 ? 'warning' : 'success'}
+            title="导入完成"
+            subTitle={
+              <Descriptions column={2} size="small" style={{ marginTop: 12 }}>
+                <Descriptions.Item label="新建">{importResult.created}</Descriptions.Item>
+                <Descriptions.Item label="重命名">{importResult.renamed}</Descriptions.Item>
+                <Descriptions.Item label="覆盖">{importResult.overwritten}</Descriptions.Item>
+                <Descriptions.Item label="跳过">{importResult.skipped}</Descriptions.Item>
+                <Descriptions.Item label="失败">{importResult.failed}</Descriptions.Item>
+              </Descriptions>
+            }
+            extra={
+              importResult.errors.length > 0 && (
+                <div style={{ textAlign: 'left', maxHeight: 120, overflow: 'auto' }}>
+                  {importResult.errors.map((e, i) => (
+                    <div key={i} style={{ color: '#ff4d4f', fontSize: 12 }}>{e}</div>
+                  ))}
+                </div>
+              )
+            }
+          />
+        ) : (
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <Upload.Dragger
+              accept=".json"
+              beforeUpload={handleFileRead}
+              showUploadList={false}
+              maxCount={1}
+            >
+              <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+              <p className="ant-upload-text">点击或拖拽 JSON 文件到此区域</p>
+              <p className="ant-upload-hint">支持由「导出」功能生成的 JSON 格式，SSH 密码需在导入后重新配置</p>
+            </Upload.Dragger>
+            <div>
+              <div style={{ marginBottom: 8, color: 'rgba(0,0,0,0.65)' }}>遇到同名命令时：</div>
+              <Radio.Group value={importMode} onChange={e => setImportMode(e.target.value)}>
+                <Radio value="rename">自动重命名（同名命令添加 -copy 后缀）</Radio>
+                <Radio value="skip">跳过（保留已有命令不变）</Radio>
+                <Radio value="overwrite">覆盖（用导入的命令覆盖同名命令）</Radio>
+              </Radio.Group>
+            </div>
+          </Space>
+        )}
+      </Modal>
+      {/* 版本历史抖帘 */}
+      <Drawer
+        title={`版本历史 — ${versionHistoryName}`}
+        open={versionHistoryVisible}
+        onClose={() => setVersionHistoryVisible(false)}
+        width={640}
+        destroyOnClose
+      >
+        <Table<HTTPRUN.CommandVersionItem>
+          dataSource={versionList}
+          rowKey="id"
+          loading={versionLoading}
+          size="small"
+          pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 个版本` }}
+          locale={{ emptyText: <Empty description="暂无版本记录" /> }}
+          columns={[
+            {
+              title: '版本',
+              dataIndex: 'version',
+              width: 70,
+              render: (v: number) => <Tag color="blue">V{v}</Tag>,
+            },
+            {
+              title: '变更时间',
+              dataIndex: 'changedAt',
+              width: 180,
+              render: (t: string) => t ? new Date(t).toLocaleString('zh-CN') : '-',
+            },
+            {
+              title: '变更说明',
+              dataIndex: 'changeNote',
+              ellipsis: true,
+              render: (note: string) => note || <span style={{ color: '#bbb' }}>-</span>,
+            },
+            {
+              title: '操作',
+              key: 'action',
+              width: 110,
+              render: (_: any, ver: HTTPRUN.CommandVersionItem) => (
+                <Button
+                  size="small"
+                  danger
+                  onClick={() => handleRollback(versionHistoryName, ver.id, ver.version)}
+                >
+                  回滚至此版本
+                </Button>
+              ),
+            },
+          ]}
+        />
+      </Drawer>
     </PageContainer>
   );
 };
