@@ -49,6 +49,14 @@ public class UserController {
             return ResponseEntity.ok(commandService.listAllCommands());
         }
 
+        // allowedGroups 匹配到的命令
+        boolean hasGroups = principal.allowedGroups() != null && !principal.allowedGroups().isBlank();
+
+        if (hasGroups) {
+            List<String> groups = Arrays.asList(principal.allowedGroups().split(","));
+            return ResponseEntity.ok(commandService.listCommandsByGroups(groups));
+        }
+
         List<String> allowedCommands = Arrays.asList(principal.subject().split(","));
         return ResponseEntity.ok(commandService.listCommands(allowedCommands));
     }
@@ -201,7 +209,8 @@ public class UserController {
             @AuthenticationPrincipal JwtUserPrincipal principal) {
 
         String subject = principal.admin() ? "admin" : principal.subject();
-        CommandExecutionResult result = commandService.runCommand(request, subject);
+        String allowedGroups = principal.allowedGroups();
+        CommandExecutionResult result = commandService.runCommand(request, subject, allowedGroups);
         return ResponseEntity.ok(result);
     }
 }

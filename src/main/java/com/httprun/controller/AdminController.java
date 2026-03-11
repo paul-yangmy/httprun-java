@@ -1,9 +1,12 @@
 package com.httprun.controller;
 
+import com.httprun.dto.request.CommandImportRequest;
 import com.httprun.dto.request.CreateCommandRequest;
 import com.httprun.dto.request.CreateTokenRequest;
 import com.httprun.dto.request.UpdateCommandRequest;
+import com.httprun.dto.response.CommandImportResult;
 import com.httprun.dto.response.CommandResponse;
+import com.httprun.dto.response.CommandVersionResponse;
 import com.httprun.dto.response.RevokeTokenResponse;
 import com.httprun.entity.AccessLog;
 import com.httprun.entity.Command;
@@ -95,6 +98,55 @@ public class AdminController {
                         @Parameter(description = "命令名称，多个名称用空格分隔", example = "deploy-app backup-db") @RequestParam String name) {
                 commandService.deleteCommands(List.of(name.split(" ")));
                 return ResponseEntity.ok().build();
+        }
+
+        @GetMapping("/commands/export")
+        @Operation(summary = "导出命令", description = "将指定命令（或全部命令）导出为 JSON 格式，便于在不同环境间同步。SSH 密码/私钥字段不导出，需在目标系统重新配置")
+        @ApiResponse(responseCode = "200", description = "导出成功")
+        public ResponseEntity<List<CreateCommandRequest>> exportCommands(
+                        @Parameter(description = "命令名称列表（逗号分隔），空表示导出全部", example = "deploy-app,backup-db") @RequestParam(required = false) String names) {
+                List<String> nameList = (names != null && !names.isBlank())
+                                ? List.of(names.split(","))
+                                : List.of();
+                return ResponseEntity.ok(commandService.exportCommands(nameList));
+        }
+
+        @PostMapping("/commands/import")
+        @Operation(summary = "导入命令", description = "批量导入命令配置（JSON 列表）。mode=skip 时跳过同名命令，mode=overwrite 时覆盖同名命令")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "导入完成，返回各状态计数"),
+                        @ApiResponse(responseCode = "400", description = "请求格式错误")
+        })
+        public ResponseEntity<CommandImportResult> importCommands(
+                        @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "导入请求") @jakarta.validation.Valid @RequestBody CommandImportRequest request) {
+                return ResponseEntity.ok(commandService.importCommands(request));
+        }
+
+        @GetMapping("/commands/groups")
+        @Operation(summary = "获取所有命令分组名称", description = "返回所有命令的 groupName 去重列表，供前端分组选择使用")
+        @ApiResponse(responseCode = "200", description = "分组列表获取成功")
+        public ResponseEntity<List<String>> getCommandGroups() {
+                return ResponseEntity.ok(commandService.listAllGroupNames());
+        }
+
+        @GetMapping("/command/{name}/versions")
+        @Operation(summary = "获取命令版本历史", description = "返回指定命令的所有版本历史，按版本号倒序排列")
+        @ApiResponse(responseCode = "200", description = "版本历史获取成功")
+        public ResponseEntity<List<CommandVersionResponse>> getCommandVersions(
+                        @Parameter(description = "命令名称") @PathVariable String name) {
+                return ResponseEntity.ok(commandService.listCommandVersions(name));
+        }
+
+        @PostMapping("/command/{name}/rollback/{versionId}")
+        @Operation(summary = "回滚命令到指定版本", description = "将命令回滚到历史版本的配置状态，回滚操作本身也会产生一条新的版本记录")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "回滚成功"),
+                        @ApiResponse(responseCode = "404", description = "命令或版本不存在")
+        })
+        public ResponseEntity<CommandResponse> rollbackCommandVersion(
+                        @Parameter(description = "命令名称") @PathVariable String name,
+                        @Parameter(description = "版本 ID") @PathVariable Long versionId) {
+                return ResponseEntity.ok(commandService.rollbackCommandVersion(name, versionId));
         }
 
         // ========== Token 管理 ==========
