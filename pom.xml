@@ -245,6 +245,9 @@
                             <arguments>run build</arguments>
                             <environmentVariables>
                                 <NODE_OPTIONS>--max-old-space-size=4096</NODE_OPTIONS>
+                                <!-- 强制 Node 以 UTF-8 输出，修复 Windows 下 npm 日志乱码 -->
+                                <PYTHONUTF8>1</PYTHONUTF8>
+                                <FORCE_COLOR>0</FORCE_COLOR>
                             </environmentVariables>
                         </configuration>
                     </execution>
@@ -288,6 +291,7 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    <jvmArguments>-Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8</jvmArguments>
                 </configuration>
             </plugin>
 
