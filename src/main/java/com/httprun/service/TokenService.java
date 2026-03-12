@@ -18,7 +18,7 @@ public interface TokenService {
      * @param name      Token 名称
      * @param subject   授权的命令列表（逗号分隔）
      * @param isAdmin   是否管理员
-     * @param expiresIn 过期时间（小时），0 表示永不过期（默认 1 年）
+     * @param expiresIn 过期时间（小时），-1 表示永久有效，0 默认 1 年，正整数表示小时数
      * @return 创建的 Token
      */
     Token createToken(String name, String subject, boolean isAdmin, int expiresIn);
