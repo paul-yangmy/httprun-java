@@ -12,10 +12,10 @@ spring:
   
   # 数据源配置
   datasource:
-    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/httprun?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai}
-    username: ${DB_USER:root}
-    password: ${DB_PASSWORD:root}
-    driver-class-name: ${DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/httprun}
+    username: ${DB_USER:httprun}
+    password: ${DB_PASSWORD:httprun123}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     hikari:
       minimum-idle: ${DB_POOL_MIN_IDLE:5}
       maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
@@ -32,7 +32,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.MySQL8Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
   
   # 静态资源配置
   # 注意：WebConfig 会自动检测环境并选择合适的静态资源位置
@@ -43,19 +43,6 @@ spring:
       static-locations: 
         - file:${httprun.webapp-build-dir:./webapp/dist}/
         - classpath:/static/
-  
-  # Redis 配置
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      database: 0
-      lettuce:
-        pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 0
   
   # Flyway 配置
   flyway:

@@ -15,12 +15,6 @@ spring:
       hibernate:
         dialect: org.hibernate.community.dialect.SQLiteDialect
   
-  # 禁用 Redis（开发环境）
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
-  
   # 静态资源配置
   web:
     resources:
