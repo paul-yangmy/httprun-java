@@ -1,11 +1,19 @@
 package com.httprun.entity;
 
-import jakarta.persistence.*;
-import lombok.Data;
+import java.time.LocalDateTime;
+
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDateTime;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import lombok.Data;
 
 /**
  * 命令版本历史实体
@@ -37,7 +45,7 @@ public class CommandVersion {
      * 命令配置快照（CreateCommandRequest JSON）
      */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, columnDefinition = "JSON")
+    @Column(nullable = false, columnDefinition = "jsonb")
     private String snapshot;
 
     /**

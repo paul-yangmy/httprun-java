@@ -1,13 +1,26 @@
 package com.httprun.entity;
 
-import com.httprun.enums.CommandStatus;
-import com.httprun.enums.ExecutionMode;
-import jakarta.persistence.*;
-import lombok.Data;
+import java.time.LocalDateTime;
+
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDateTime;
+import com.httprun.enums.CommandStatus;
+import com.httprun.enums.ExecutionMode;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.Data;
 
 /**
  * 命令实体
@@ -56,7 +69,7 @@ public class Command {
      * - env: 环境变量列表
      */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "JSON")
+    @Column(columnDefinition = "jsonb")
     private CommandConfig commandConfig;
 
     /**
@@ -71,7 +84,7 @@ public class Command {
      * 使用显式 Converter 确保 host/port/username 等正确序列化与反序列化。
      */
     @Convert(converter = RemoteConfigConverter.class)
-    @Column(name = "remote_config", columnDefinition = "JSON")
+    @Column(name = "remote_config", columnDefinition = "jsonb")
     private RemoteConfig remoteConfig;
 
     /**
