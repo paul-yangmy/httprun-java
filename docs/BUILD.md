@@ -9,8 +9,8 @@
 执行 `mvn clean package` 时，会按以下顺序自动执行：
 
 1. **安装 Node.js 和 npm**（如果系统中不存在）
-   - Node.js: v20.11.0
-   - npm: 10.8.0
+   - Node.js: v24.13.0
+   - npm: 10.9.2
 
 2. **安装前端依赖**
    ```bash

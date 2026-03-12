@@ -19,9 +19,9 @@ HttpRun Java是一个基于[httprun](https://github.com/raojinlin/httprun)项目
 - Spring Security
 - Spring Data JPA
 - Spring WebSocket
-- MySQL / SQLite / H2
-- Redis（可选）
+- PostgreSQL 16（生产）/ SQLite（开发）
 - Flyway
+- Caffeine（本地缓存）
 - Springdoc OpenAPI
 
 ## 快速开始
@@ -30,8 +30,7 @@ HttpRun Java是一个基于[httprun](https://github.com/raojinlin/httprun)项目
 
 - JDK 17+
 - Maven 3.8+
-- MySQL 8+（生产推荐）
-- Redis 7+（可选）
+- PostgreSQL 16+(生产); SQLite(开发)
 
 
 ### 1) 构建项目
@@ -64,7 +63,7 @@ java -jar target/httprun-java-1.0.0.jar --httprun.init-admin-token=true
 
 ## 开发模式
 
-默认 `dev` 配置使用 SQLite（`./httprun.db`），并禁用 Redis 自动配置。
+默认 `dev` 配置使用 SQLite（`./httprun.db`），无需额外配置数据库。
 
 直接启动:
 
@@ -79,8 +78,8 @@ java -jar target/httprun-java-1.0.0.jar
 ```bash
 java \
   -DSPRING_PROFILES_ACTIVE=prod \
-  -DDB_HOST=your-db-host \
-  -DDB_PORT=3306 \
+  -DDB_HOST=your-pg-host \
+  -DDB_PORT=5432 \
   -DDB_USER=httprun \
   -DDB_PASSWORD=your-db-password \
   -DJWT_SECRET=your-32+chars-secret \
@@ -93,8 +92,8 @@ java \
 ```bash
 java \
   -DSPRING_PROFILES_ACTIVE=prod \
-  -DDB_HOST=your-db-host \
-  -DDB_PORT=3306 \
+  -DDB_HOST=your-pg-host \
+  -DDB_PORT=5432 \
   -DDB_USER=httprun \
   -DDB_PASSWORD=your-db-password \
   -DJWT_SECRET=your-32+chars-secret \
@@ -113,27 +112,19 @@ docker-compose up -d
 docker-compose logs -f httprun
 ```
 
-启用监控（Prometheus + Grafana）:
-
-```bash
-docker-compose --profile monitoring up -d
-```
-
 ## 关键环境变量
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
 | `SPRING_PROFILES_ACTIVE` | 否 | 运行环境，默认 `dev` |
 | `DB_URL` | 否 | 完整 JDBC URL（设置后可忽略 DB_HOST/DB_PORT） |
-| `DB_HOST` | 否 | MySQL 主机，默认 `localhost` |
-| `DB_PORT` | 否 | MySQL 端口，默认 `3306` |
-| `DB_USER` | 否 | 数据库用户名，默认 `root` |
+| `DB_HOST` | 否 | PostgreSQL 主机，默认 `localhost` |
+| `DB_PORT` | 否 | PostgreSQL 端口，默认 `5432` |
+| `DB_USER` | 否 | 数据库用户名，默认 `httprun` |
 | `DB_PASSWORD` | 否 | 数据库密码 |
 | `JWT_SECRET` | 生产必填 | JWT 密钥，至少 32 字符 |
 | `INIT_ADMIN_TOKEN` | 否 | 是否在启动时初始化管理员 Token |
 | `WEBAPP_BUILD_DIR` | 否 | 前端构建目录，默认 `./webapp/dist` |
-| `REDIS_HOST` | 否 | Redis 主机（启用 Redis 时） |
-| `REDIS_PORT` | 否 | Redis 端口，默认 `6379` |
 
 ## 常用 API 示例
 
