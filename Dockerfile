@@ -1,4 +1,15 @@
 # 多阶段构建 Dockerfile
+#
+# 构建命令（在本机联网环境执行，构建 linux/amd64 镜像并导出）:
+#   docker build --platform linux/amd64 -t httprun-java:1.0.0 .
+#   docker save -o httprun-java-1.0.0.tar httprun-java:1.0.0
+#   docker save -o postgres-16-alpine.tar postgres:16-alpine
+#
+# 目标服务器（内网，无需联网）:
+#   docker load -i httprun-java-1.0.0.tar
+#   docker load -i postgres-16-alpine.tar
+#   docker compose up -d
+
 # 阶段1: 构建阶段
 FROM maven:3.9-eclipse-temurin-17-alpine AS builder
 

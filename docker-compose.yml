@@ -1,11 +1,13 @@
 version: '3.8'
 
+# 内网离线部署 compose 文件
+# 使用前请确保已在寿主机执行 docker load 导入以下镜像:
+#   docker load -i httprun-java-1.0.0.tar
+#   docker load -i postgres-16-alpine.tar
+
 services:
-  # HttpRun 应用
   httprun:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: httprun-java:1.0.0
     container_name: httprun-app
     ports:
       - "8081:8081"
@@ -32,7 +34,6 @@ services:
     volumes:
       - httprun-logs:/var/log/httprun
 
-  # PostgreSQL 数据库
   postgres:
     image: postgres:16-alpine
     container_name: httprun-postgres
