@@ -1,0 +1,26 @@
+{
+  "name": "httprun-java-video",
+  "version": "1.0.0",
+  "description": "HttpRun Java 部署介绍视频 - 骇客风格",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "remotion studio",
+    "build": "remotion render HackerDeployVideo out/httprun-deploy.mp4",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/transitions": "4.0.291",
+    "remotion": "4.0.291",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.291",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "typescript": "5.4.2"
+  },
+  "remotion": {
+    "entryPoint": "src/index.ts"
+  }
+}

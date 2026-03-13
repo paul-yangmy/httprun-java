@@ -36,6 +36,9 @@ build/
 ####################################
 # Package manager
 ####################################
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 .yarn/cache/
 .yarn/unplugged/
 .yarn/build-state.yml
@@ -79,3 +82,4 @@ backend/target/*
 .DS_Store
 Thumbs.db
 httprun.db
+.gitnexus
