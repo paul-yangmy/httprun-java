@@ -83,7 +83,7 @@ public class Command {
      * 远程执行配置（SSH/Agent 模式使用）
      * 使用显式 Converter 确保 host/port/username 等正确序列化与反序列化。
      */
-    @Convert(converter = RemoteConfigConverter.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "remote_config", columnDefinition = "jsonb")
     private RemoteConfig remoteConfig;
 
