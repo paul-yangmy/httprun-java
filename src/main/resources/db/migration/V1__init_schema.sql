@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS ssh_host_keys (
     port        INT           NOT NULL,
     key_type    VARCHAR(50)   NOT NULL,
     fingerprint VARCHAR(2000) NOT NULL,
-    sha256_hash VARCHAR(100),
+    sha256Hash VARCHAR(100),
     first_seen  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     trusted     BOOLEAN       NOT NULL DEFAULT TRUE,
