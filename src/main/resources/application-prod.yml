@@ -28,7 +28,7 @@ jwt:
 # HttpRun 配置
 httprun:
   webapp-build-dir: ${WEBAPP_BUILD_DIR:./webapp/dist}
-  init-admin-token: false
+  init-admin-token: ${INIT_ADMIN_TOKEN:true}
 
 logging:
   level:

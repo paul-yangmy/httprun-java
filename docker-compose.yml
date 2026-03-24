@@ -18,7 +18,7 @@ services:
       - DB_USER=httprun
       - DB_PASSWORD=httprun123
       - JWT_SECRET=your-production-jwt-secret-key-change-this-at-least-32-chars
-      - INIT_ADMIN_TOKEN=false
+      - INIT_ADMIN_TOKEN=true
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,7 +36,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: httprun-postgres
+    container_name: httprun-postgres-prod
     ports:
       - "5432:5432"
     environment:

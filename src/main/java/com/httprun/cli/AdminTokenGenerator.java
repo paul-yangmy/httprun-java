@@ -77,7 +77,10 @@ public class AdminTokenGenerator implements CommandLineRunner {
             log.info("");
             log.info("JWT Token:");
             log.info("----------------------------------------");
+            System.out.println("ADMIN_TOKEN_BEGIN");
             System.out.println(token.getJwtToken());
+            System.out.println("ADMIN_TOKEN_END");
+            System.out.flush();
             log.info("----------------------------------------");
             log.info("");
             log.info("请保存此 Token，后续将无法再次查看完整内容!");

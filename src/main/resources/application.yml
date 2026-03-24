@@ -58,7 +58,7 @@ jwt:
 # HttpRun 配置
 httprun:
   webapp-build-dir: ${WEBAPP_BUILD_DIR:./webapp/dist}
-  init-admin-token: ${INIT_ADMIN_TOKEN:false}
+  init-admin-token: ${INIT_ADMIN_TOKEN:true}
 
 # 命令执行配置
 command:

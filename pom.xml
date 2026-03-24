@@ -195,12 +195,12 @@
                 <configuration>
                     <workingDirectory>webapp</workingDirectory>
                     <!-- 安装到 target/ 外部，避免 mvn clean 因 Windows 文件锁删除 node.exe 失败 -->
-                    <installDirectory>${project.basedir}/.node</installDirectory>
+                    <installDirectory>${project.build.directory}</installDirectory>
                     <skip>${skipFrontend}</skip>
                     <!-- Node 安装包国内镜像 -->
-                    <nodeDownloadRoot>https://npmmirror.com/mirrors/node/</nodeDownloadRoot>
+                    <nodeDownloadRoot>https://registry.npmmirror.com/mirrors/node/</nodeDownloadRoot>
                     <!-- npm 本体安装包国内镜像 -->
-                    <npmDownloadRoot>https://npmmirror.com/mirrors/npm/</npmDownloadRoot>
+                    <npmDownloadRoot>https://registry.npmmirror.com/mirrors/npm/</npmDownloadRoot>
                 </configuration>
                 <executions>
                     <!-- 1/3 安装 Node + npm（国内镜像，首次下载也很快） -->
