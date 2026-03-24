@@ -7,8 +7,6 @@
 .vscode
 *.iml
 
-# Maven build output
-target/
 
 # Node modules (will be installed during Docker build)
 webapp/node_modules
